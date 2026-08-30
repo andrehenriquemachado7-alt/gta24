@@ -22,7 +22,8 @@
     "react-router-dom": "^6.8.0",
     "recharts": "^2.10.0",
     "three": "^0.185.1",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "vite-plugin-singlefile": "^2.3.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.7",
