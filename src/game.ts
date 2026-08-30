@@ -559,10 +559,10 @@ export class QuintalGame {
        A encosta agora é uma colina contínua: patamares ligados por rampas
        suaves (sem degraus retos) com ondulação orgânica. A malha é
        construída no fim (depois de registrar as zonas planas). */
-    // chão da rua principal (faixa de asfalto) — mantém-se plana
-    const road = this.box(120, 0.06, 9, new THREE.MeshLambertMaterial({ color: 0x4a4650 }), 0, BANDS[0].y, 39, false);
+    // chão da rua principal (faixa de asfalto) — longe da rampa para não ter terra invadindo o asfalto
+    const road = this.box(120, 0.06, 9, new THREE.MeshLambertMaterial({ color: 0x4a4650 }), 0, BANDS[0].y, 42, false);
     road.receiveShadow = true;
-    this.addFlatRect(-60, 60, 34.2, 43.8);
+    this.addFlatRect(-60, 60, 37.2, 46.8);
 
     /* --- escadarias (estrutura vazada: degraus flutuantes + corrimão fino) --- */
     const N_STEPS = 10, RISE = 0.28, TREAD = 0.46, STAIR_W = 2.3;
@@ -784,25 +784,26 @@ export class QuintalGame {
     const poleMat = new THREE.MeshLambertMaterial({ color: 0x33303a });
     const wireMat = new THREE.MeshLambertMaterial({ color: 0x1c1a20 });
     const poleTops: THREE.Vector3[] = [];
+    const poleZ = 37.3; // calçada da rua (fora da rampa)
     for (const px of [-45, -15, 15, 45]) {
       const by = BANDS[0].y;
       // base larga do poste
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.27, 0.3, 10), poleMat);
-      base.position.set(px, by + 0.15, 35.6); base.castShadow = true; this.scene.add(base);
+      base.position.set(px, by + 0.15, poleZ); base.castShadow = true; this.scene.add(base);
       // haste cônica (grossa embaixo, fina em cima)
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 3.4, 8), poleMat);
-      pole.position.set(px, by + 2.0, 35.6); pole.castShadow = true; this.scene.add(pole);
+      pole.position.set(px, by + 2.0, poleZ); pole.castShadow = true; this.scene.add(pole);
       // braço inclinado no topo segurando a luminária sobre a rua
       const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 6), poleMat);
-      arm.position.set(px, by + 3.72, 35.6 - 0.36); arm.rotation.x = Math.PI / 2 - 0.28; this.scene.add(arm);
+      arm.position.set(px, by + 3.72, poleZ + 0.36); arm.rotation.x = Math.PI / 2 - 0.28; this.scene.add(arm);
       // luminária: cúpula + lâmpada brilhante + halo
       const shade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.17, 10, 1, true), new THREE.MeshLambertMaterial({ color: 0x3a3742, side: THREE.DoubleSide }));
-      shade.position.set(px, by + 3.82, 35.6 - 0.66); shade.castShadow = true; this.scene.add(shade);
+      shade.position.set(px, by + 3.82, poleZ + 0.66); shade.castShadow = true; this.scene.add(shade);
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffe0a0 }));
-      bulb.position.set(px, by + 3.72, 35.6 - 0.66); this.scene.add(bulb);
+      bulb.position.set(px, by + 3.72, poleZ + 0.66); this.scene.add(bulb);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
       glow.position.copy(bulb.position); glow.scale.setScalar(2.0); this.scene.add(glow);
-      poleTops.push(new THREE.Vector3(px, by + 3.95, 35.6));
+      poleTops.push(new THREE.Vector3(px, by + 3.95, poleZ));
     }
     // fiação com barriga ligando os postes e descendo para os telhados
     const wire = (a: THREE.Vector3, b: THREE.Vector3, sag: number) => {
@@ -1067,8 +1068,9 @@ export class QuintalGame {
   }
 
   private resize() {
-    const w = this.canvas.clientWidth || window.innerWidth;
-    const h = this.canvas.clientHeight || window.innerHeight;
+    const host = this.canvas.parentElement;
+    const w = (host ? host.clientWidth : 0) || this.canvas.clientWidth || window.innerWidth;
+    const h = (host ? host.clientHeight : 0) || this.canvas.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
