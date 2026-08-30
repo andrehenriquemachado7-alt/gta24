@@ -10,10 +10,10 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import {
   BANDS, STAIRS, SPOTS, FARM, FEIRA_POS, RECEPT_POS,
   HOUSE_COLORS, GATE_COLS, WIN_COLS, PAINT, SIGN_DATA, mulberry32, clamp,
-} from "./constants";
-import * as TEX from "./textures";
+} from "../core/constants";
+import * as TEX from "../utils/textures";
 import type { Physics } from "./physics";
-import type { Spot, StairActual, NpcDef } from "./types";
+import type { Spot, StairActual, NpcDef } from "../core/types";
 
 export class WorldGenerator {
   stairActual: StairActual[] = [];

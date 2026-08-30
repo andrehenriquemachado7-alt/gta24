@@ -5,8 +5,8 @@
    sliding em X/Z. Sem pontas soltas: nada atravessa.
    ============================================================ */
 import * as THREE from "three";
-import { BANDS, PHYS, smoothstep } from "./constants";
-import type { SurfaceDef } from "./types";
+import { BANDS, PHYS, smoothstep } from "../core/constants";
+import type { SurfaceDef } from "../core/types";
 
 export type ColliderType = "house" | "wall" | "fence" | "prop" | "tank" | "structure";
 

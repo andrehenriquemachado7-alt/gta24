@@ -5,7 +5,7 @@
    dá zoom-in automático até ficar livre.
    ============================================================ */
 import * as THREE from "three";
-import { CAM, clamp, damp } from "./constants";
+import { CAM, clamp, damp } from "../core/constants";
 import type { Physics } from "./physics";
 
 export class OrbitCam {

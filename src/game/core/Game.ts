@@ -5,15 +5,15 @@
    loop, input, partículas, radar e ponte de HUD.
    ============================================================ */
 import * as THREE from "three";
-import { Sfx } from "./audio";
-import { Physics } from "./physics";
-import { OrbitCam } from "./camera";
-import { Player } from "./player";
-import { Economy } from "./economy";
-import { WorldGenerator } from "./world";
-import { validateWorld } from "./validate";
-import { DebugRig } from "./debug";
-import { makeGlowTex } from "./textures";
+import { Sfx } from "../utils/audio";
+import { Physics } from "../systems/physics";
+import { OrbitCam } from "../systems/camera";
+import { Player } from "../entities/player";
+import { Economy } from "../systems/economy";
+import { WorldGenerator } from "../systems/world";
+import { validateWorld } from "../utils/validate";
+import { DebugRig } from "../utils/debug";
+import { makeGlowTex } from "../utils/textures";
 import { PRICES, clamp, fmtBRL, BANDS, FARM, FEIRA_POS, RECEPT_POS } from "./constants";
 import type { HudData, ScreenState, ToastInfo } from "./types";
 

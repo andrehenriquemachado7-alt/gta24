@@ -4,8 +4,8 @@
    coyote-time + jump-buffer (pulo instantâneo) e sliding X/Z.
    ============================================================ */
 import * as THREE from "three";
-import { PHYS } from "./constants";
-import type { Physics } from "./physics";
+import { PHYS } from "../core/constants";
+import type { Physics } from "../systems/physics";
 
 export class Player {
   readonly group = new THREE.Group();
