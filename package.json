@@ -12,6 +12,7 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.98.0",
+    "@types/three": "^0.185.4",
     "canvas-confetti": "^1.9.3",
     "date-fns": "^2.30.0",
     "framer-motion": "^11.16.1",
@@ -20,6 +21,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.0",
     "recharts": "^2.10.0",
+    "three": "^0.185.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
