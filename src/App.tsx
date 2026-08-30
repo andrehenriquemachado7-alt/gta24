@@ -133,7 +133,7 @@ function StartScreen({ onStart }: { onStart: () => void }) {
           <h2 className="font-display text-2xl tracking-wide text-sol-400">COMO SE VIRA</h2>
           <ol className="mt-3 space-y-2.5 text-[13.5px] text-laje-100/90">
             {[
-              ["1", "Compre vaso, terra e semente rara no Mercadinho da rua."],
+              ["1", "Compre vaso e terra na Feira do Zé (fazenda) e a semente no Esconderijo."],
               ["2", "Mocada a planta na laje ou no beco marcado em verde."],
               ["3", "Espere as 3 fases: broto, vegetativa e flora."],
               ["4", "Colha os pacotes e venda no Esconderijo do Receptador."],
@@ -161,7 +161,7 @@ function StartScreen({ onStart }: { onStart: () => void }) {
         <div className="ticker-track flex w-max gap-8 whitespace-nowrap font-display text-lg tracking-[0.18em] text-laje-100/60">
           {Array.from({ length: 2 }).map((_, k) => (
             <span key={k} className="flex gap-8">
-              <span>MERCADINHO DO ZÉ</span><span className="text-sol-400">✦</span>
+              <span>FEIRA DO ZÉ NA FAZENDA</span><span className="text-sol-400">✦</span>
               <span>CASA EM CIMA DE CASA</span><span className="text-sol-400">✦</span>
               <span>LAJE COM VISTA PRO MAR</span><span className="text-sol-400">✦</span>
               <span>VIELA APERTADA</span><span className="text-sol-400">✦</span>
@@ -192,7 +192,7 @@ function ShopPanel({ hud, game }: { hud: HudData; game: QuintalGame }) {
       <div className="hud-panel px-5 py-4">
         <div className="flex items-center justify-between">
           <h3 className={`font-display text-2xl tracking-wide ${isMercado ? "text-sol-400" : "text-rojo-500"}`}>
-            {isMercado ? "MERCADINHO DO ZÉ" : "ESCONDERIJO"}
+            {isMercado ? "FEIRA DO ZÉ" : "ESCONDERIJO"}
           </h3>
           <button onClick={() => game.closeShop()} className="hud-chip px-2.5 py-1 text-xs font-bold text-laje-100/80 hover:text-laje-100">FECHAR</button>
         </div>
@@ -285,7 +285,7 @@ export default function App() {
           <p className="px-1 pb-1 text-right font-display text-sm tracking-[0.2em] text-laje-100/60">RADAR</p>
           <canvas ref={minimapRef} width={176} height={176} className="block w-36 sm:w-44" />
           <div className="flex justify-between px-1 pt-1 text-[9.5px] font-bold tracking-wider">
-            <span className="text-sol-400">■ MERCADO</span>
+            <span className="text-grana-400">■ FEIRA</span>
             <span className="text-rojo-500">■ RECEPTADOR</span>
           </div>
         </div>
@@ -299,6 +299,13 @@ export default function App() {
               aria-label="Mostrar caixas de colisão"
             >
               DBG
+            </button>
+            <button
+              onClick={() => g?.toggleFx()}
+              className={`hud-chip p-2 px-2.5 font-display text-base tracking-widest ${hud.fx ? "text-sol-400 ring-1 ring-sol-400/60" : "text-laje-100/80 hover:text-laje-100"}`}
+              aria-label="Pós-processamento (bloom)"
+            >
+              FX
             </button>
           </div>
         )}
