@@ -545,6 +545,105 @@ export class QuintalGame {
     return tex;
   }
 
+  /* textura do chão (multiplica com as cores por vértice do terreno) */
+  private texGround(): THREE.CanvasTexture {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#cfc4b0"; x.fillRect(0, 0, 256, 256);
+    // pedriscos e grãos
+    for (let i = 0; i < 2400; i++) {
+      const v = 150 + Math.floor(Math.random() * 90);
+      x.fillStyle = `rgba(${v},${v - 12},${v - 30},${0.25 + Math.random() * 0.4})`;
+      const s = 1 + Math.random() * 2.4;
+      x.fillRect(Math.random() * 256, Math.random() * 256, s, s);
+    }
+    // pedrinhas com sombra
+    for (let i = 0; i < 60; i++) {
+      const px = Math.random() * 256, py = Math.random() * 256, r = 1.6 + Math.random() * 3.4;
+      x.fillStyle = "rgba(70,58,44,0.5)"; x.beginPath(); x.arc(px + 1, py + 1.4, r, 0, Math.PI * 2); x.fill();
+      x.fillStyle = `rgb(${165 + Math.floor(Math.random() * 50)},${152 + Math.floor(Math.random() * 44)},${132 + Math.floor(Math.random() * 40)})`;
+      x.beginPath(); x.arc(px, py, r, 0, Math.PI * 2); x.fill();
+    }
+    // manchas de umidade / trilhas
+    for (let i = 0; i < 14; i++) {
+      x.fillStyle = `rgba(88,70,50,${0.05 + Math.random() * 0.1})`;
+      x.beginPath();
+      x.ellipse(Math.random() * 256, Math.random() * 256, 14 + Math.random() * 40, 8 + Math.random() * 20, Math.random() * Math.PI, 0, Math.PI * 2);
+      x.fill();
+    }
+    // rachaduras finas
+    x.strokeStyle = "rgba(60,48,36,0.35)"; x.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      x.beginPath();
+      let px = Math.random() * 256, py = Math.random() * 256;
+      x.moveTo(px, py);
+      for (let k = 0; k < 5; k++) { px += (Math.random() - 0.5) * 40; py += (Math.random() - 0.5) * 40; x.lineTo(px, py); }
+      x.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(42, 42);
+    return tex;
+  }
+
+  /* asfalto gasto da rua principal */
+  private texAsphalt(): THREE.CanvasTexture {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#4a474f"; x.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 3200; i++) {
+      const v = 48 + Math.floor(Math.random() * 60);
+      x.fillStyle = `rgba(${v},${v},${v + 6},${0.2 + Math.random() * 0.35})`;
+      x.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
+    }
+    // remendos de asfalto novo
+    for (let i = 0; i < 6; i++) {
+      x.fillStyle = `rgba(38,36,42,${0.5 + Math.random() * 0.3})`;
+      x.fillRect(Math.random() * 200, Math.random() * 200, 30 + Math.random() * 60, 20 + Math.random() * 40);
+    }
+    // rachaduras
+    x.strokeStyle = "rgba(24,22,28,0.6)"; x.lineWidth = 1.2;
+    for (let i = 0; i < 12; i++) {
+      x.beginPath();
+      let px = Math.random() * 256, py = Math.random() * 256;
+      x.moveTo(px, py);
+      for (let k = 0; k < 6; k++) { px += (Math.random() - 0.5) * 50; py += (Math.random() - 0.5) * 50; x.lineTo(px, py); }
+      x.stroke();
+    }
+    // desgaste claro no meio da pista
+    x.fillStyle = "rgba(150,145,140,0.1)";
+    x.fillRect(0, 96, 256, 64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(18, 2);
+    return tex;
+  }
+
+  /* concreto manchado (escadas, contenções) */
+  private texConcrete(): THREE.CanvasTexture {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#b7b0a4"; x.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 900; i++) {
+      const v = 120 + Math.floor(Math.random() * 90);
+      x.fillStyle = `rgba(${v},${v},${v - 8},${0.15 + Math.random() * 0.3})`;
+      x.fillRect(Math.random() * 128, Math.random() * 128, 1.6, 1.6);
+    }
+    for (let i = 0; i < 10; i++) {
+      x.fillStyle = `rgba(70,64,54,${0.06 + Math.random() * 0.12})`;
+      x.beginPath();
+      x.ellipse(Math.random() * 128, Math.random() * 128, 8 + Math.random() * 26, 5 + Math.random() * 14, Math.random() * Math.PI, 0, Math.PI * 2);
+      x.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    return tex;
+  }
+
   /* mural de grafite procedural para os becos */
   private texGraffiti(): THREE.CanvasTexture {
     const c = document.createElement("canvas"); c.width = 256; c.height = 128;
@@ -609,9 +708,10 @@ export class QuintalGame {
   private buildWorld() {
     const rng = mulberry32(20260207);
     const wallTex = this.texWall();
+    const concTex = this.texConcrete();
     const roofMat = new THREE.MeshLambertMaterial({ color: 0x5a5168 });
-    const concrete = new THREE.MeshLambertMaterial({ color: 0x8d8578 });
-    const concreteDark = new THREE.MeshLambertMaterial({ color: 0x6f685e });
+    const concrete = new THREE.MeshLambertMaterial({ color: 0x9d9488, map: concTex });
+    const concreteDark = new THREE.MeshLambertMaterial({ color: 0x7d766a, map: concTex });
 
     /* listas para merge (poucos draw calls -> roda liso no celular) */
     const houseGeos: THREE.BufferGeometry[] = [];
@@ -674,9 +774,12 @@ export class QuintalGame {
        suaves (sem degraus retos) com ondulação orgânica. A malha é
        construída no fim (depois de registrar as zonas planas). */
     // chão da rua principal (faixa de asfalto) — longe da rampa para não ter terra invadindo o asfalto
-    const road = this.box(120, 0.06, 9, new THREE.MeshLambertMaterial({ color: 0x4a4650 }), 0, BANDS[0].y, 42, false);
+    const road = this.box(120, 0.06, 9, new THREE.MeshLambertMaterial({ color: 0x9a949e, map: this.texAsphalt() }), 0, BANDS[0].y, 42, false);
     road.receiveShadow = true;
     this.addFlatRect(-60, 60, 37.2, 46.8);
+    // guias (meio-fio) dos dois lados da rua
+    pushGeo(concreteGeos, 120, 0.16, 0.34, 0, BANDS[0].y, 37.35);
+    pushGeo(concreteGeos, 120, 0.16, 0.34, 0, BANDS[0].y, 46.65);
 
     /* --- escadarias (estrutura vazada: degraus flutuantes + corrimão fino) --- */
     const N_STEPS = 10, RISE = 0.2, TREAD = 0.46, STAIR_W = 2.3;
@@ -724,20 +827,22 @@ export class QuintalGame {
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
       const midZ = (b.z0 + b.z1) / 2;
-      const rows = [b.z0 + 4.2, midZ, b.z1 - 4.2]; // 3 fileiras = vielas dos dois lados
-      const midCount = bi === 0 ? 3 : 5;
+      // fileiras coladas nas bordas do patamar -> vielas estreitas (~1,4 m) entre elas
+      const rows = bi === 0 ? [49.9, 55.7] : [b.z0 + 2.6, midZ, b.z1 - 2.6];
+      const midCount = bi === 0 ? 4 : 6;
       const plots: { x: number; z: number }[] = [];
-      for (const rz of rows) for (let px = -56; px <= 56; px += 5.9) plots.push({ x: px + (rng() - 0.5) * 1.7, z: rz + (rng() - 0.5) * 1.4 });
+      for (const rz of rows) for (let px = -56; px <= 56; px += 4.9) plots.push({ x: px + (rng() - 0.5) * 1.1, z: rz + (rng() - 0.5) * 1.0 });
       for (let m = 0; m < midCount; m++) {
-        plots.push({ x: -50 + rng() * 100, z: b.z0 + 6.5 + rng() * Math.max(2, b.z1 - b.z0 - 13) });
+        // preenchem falhas nas próprias fileiras (tapa-buraco da autoconstrução)
+        plots.push({ x: -52 + rng() * 104, z: rows[Math.floor(rng() * rows.length)] + (rng() - 0.5) * 1.0 });
       }
       for (const p of plots) {
         if (stairXs.some((sx) => Math.abs(p.x - sx) < 3.6)) continue;
         if (reserved.some((r) => Math.abs(p.x - r.x) < r.r && Math.abs(p.z - r.z) < r.r)) continue;
         if (SPOTS.some((s) => Math.abs(p.x - s.x) < 4 && Math.abs(p.z - s.z) < 4)) continue;
         if (rng() < 0.07) continue; // beco vazio (raríssimo — o morro é cheio)
-        const w = 4.2 + rng() * 1.8;
-        const d = 4.2 + rng() * 1.8;
+        const w = 4.0 + rng() * 1.6;
+        const d = 3.4 + rng() * 1.3;
         const h = 2.9 + rng() * 1.9;
         const isLaje = rng() < 0.34;
         const hh = isLaje ? 3.0 : h;
@@ -1172,6 +1277,82 @@ export class QuintalGame {
     // terreno orgânico por último (usa as zonas planas registradas acima)
     this.buildTerrain();
 
+    /* --- detalhes de chão: poças, pedras e mato espalhados pelo morro --- */
+    const nearHouse = (xx: number, zz: number) =>
+      placed.some((hs) => Math.abs(xx - hs.x) < hs.w / 2 + 0.9 && Math.abs(zz - hs.z) < hs.d / 2 + 0.9);
+    const inRoad = (zz: number) => Math.abs(zz - 42) < 6.2;
+    const nearStairX = (xx: number) => stairXs.some((sx) => Math.abs(xx - sx) < 2.6);
+
+    // poças d'água (na rua e nas rampas)
+    const puddleGeos: THREE.BufferGeometry[] = [];
+    const mkPuddle = (ppx: number, ppz: number, rx: number, rz2: number, yy: number) => {
+      const g = new THREE.CircleGeometry(1, 16);
+      g.rotateX(-Math.PI / 2);
+      g.scale(rx, 1, rz2);
+      g.translate(ppx, yy, ppz);
+      puddleGeos.push(g);
+    };
+    mkPuddle(-26, 43.4, 2.4, 1.3, 0.075); mkPuddle(12, 40.6, 1.8, 1.0, 0.075);
+    mkPuddle(38, 44.2, 2.8, 1.2, 0.075); mkPuddle(-4, 33.2, 1.6, 0.9, this.terrainH(-4, 33.2) + 0.04);
+    mkPuddle(22, 14.8, 1.4, 0.8, this.terrainH(22, 14.8) + 0.04);
+    mkPuddle(-30, -1.6, 1.7, 0.9, this.terrainH(-30, -1.6) + 0.04);
+    if (puddleGeos.length) {
+      const pg = mergeGeometries(puddleGeos);
+      if (pg) {
+        const pm = new THREE.Mesh(pg, new THREE.MeshLambertMaterial({
+          color: 0x31485c, transparent: true, opacity: 0.82,
+          emissive: 0x4a6b8a, emissiveIntensity: 0.5, depthWrite: false,
+        }));
+        pm.renderOrder = 2;
+        this.scene.add(pm);
+      }
+    }
+
+    // pedras soltas pela encosta e beiradas
+    const rockGeos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 90; i++) {
+      const xx = -58 + rng() * 116, zz = -58 + rng() * 116;
+      if (inRoad(zz) || nearHouse(xx, zz) || nearStairX(xx)) continue;
+      const s = 0.12 + rng() * 0.4;
+      const g = new THREE.DodecahedronGeometry(s, 0);
+      g.rotateX(rng() * Math.PI); g.rotateY(rng() * Math.PI);
+      g.translate(xx, this.terrainH(xx, zz) + s * 0.35, zz);
+      rockGeos.push(g);
+    }
+    if (rockGeos.length) {
+      const rg = mergeGeometries(rockGeos);
+      if (rg) {
+        const rm = new THREE.Mesh(rg, new THREE.MeshLambertMaterial({ color: 0x8b7f6e }));
+        rm.castShadow = true; rm.receiveShadow = true;
+        this.scene.add(rm);
+      }
+    }
+
+    // tufos de mato seco e capim nas manchas verdes
+    const grassGeos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 130; i++) {
+      const xx = -58 + rng() * 116, zz = -58 + rng() * 116;
+      if (inRoad(zz) || nearHouse(xx, zz) || nearStairX(xx)) continue;
+      if (this.n2(xx * 1.9, zz * 1.9) < 0.4) continue; // só onde tem mancha de vegetação
+      const yy = this.terrainH(xx, zz);
+      for (let bl = 0; bl < 3; bl++) {
+        const bh = 0.22 + rng() * 0.34;
+        const g = new THREE.ConeGeometry(0.05 + rng() * 0.04, bh, 4);
+        g.translate((rng() - 0.5) * 0.3, bh / 2, (rng() - 0.5) * 0.3);
+        g.rotateZ((rng() - 0.5) * 0.3);
+        g.translate(xx, yy, zz);
+        grassGeos.push(g);
+      }
+    }
+    if (grassGeos.length) {
+      const gg = mergeGeometries(grassGeos);
+      if (gg) {
+        const gm = new THREE.Mesh(gg, new THREE.MeshLambertMaterial({ color: 0x7d9a4e }));
+        gm.castShadow = true;
+        this.scene.add(gm);
+      }
+    }
+
     // redesenha placas quando a fonte display carregar
     if (document.fonts?.ready) {
       void document.fonts.ready.then(() => {
@@ -1184,7 +1365,7 @@ export class QuintalGame {
   /* ---------------- terreno orgânico (malha) ---------------- */
 
   private buildTerrain() {
-    const SIZE = 132, SEG = 148;
+    const SIZE = 132, SEG = 210;
     const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
@@ -1210,7 +1391,7 @@ export class QuintalGame {
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: this.texGround() }));
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     // base de terra sob a malha (esconde a parte de baixo da colina)
