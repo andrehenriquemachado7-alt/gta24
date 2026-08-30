@@ -5,9 +5,9 @@
    com transição fluida (pop de escala + brilho).
    ============================================================ */
 import * as THREE from "three";
-import { PRICES, GROW_SECONDS, HARVEST_YIELD, ZONES, SPOTS } from "./constants";
+import { PRICES, GROW_SECONDS, HARVEST_YIELD, ZONES, SPOTS } from "../core/constants";
 import type { Physics } from "./physics";
-import type { Inv, ShopId, StatsInfo, GroundKind, PromptInfo } from "./types";
+import type { Inv, ShopId, StatsInfo, GroundKind, PromptInfo } from "../core/types";
 
 interface Plant {
   group: THREE.Group;
