@@ -428,18 +428,23 @@ export class QuintalGame {
   }
 
   private buildLights() {
-    const hemi = new THREE.HemisphereLight(0xffd9b0, 0x3a2b23, 0.95);
+    const hemi = new THREE.HemisphereLight(0xffd9b0, 0x4a3428, 1.0);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffb46b, 1.35);
-    dir.position.set(55, 75, 95);
+    const dir = new THREE.DirectionalLight(0xffb46b, 1.4);
+    dir.position.set(55, 80, 95);
     dir.castShadow = true;
     dir.shadow.mapSize.set(2048, 2048);
-    dir.shadow.camera.left = -80; dir.shadow.camera.right = 80;
-    dir.shadow.camera.top = 80; dir.shadow.camera.bottom = -80;
-    dir.shadow.camera.near = 10; dir.shadow.camera.far = 260;
-    dir.shadow.bias = -0.0006;
+    dir.shadow.camera.left = -85; dir.shadow.camera.right = 85;
+    dir.shadow.camera.top = 85; dir.shadow.camera.bottom = -85;
+    dir.shadow.camera.near = 10; dir.shadow.camera.far = 300;
+    dir.shadow.bias = -0.0005;
+    dir.shadow.normalBias = 0.025; // sombras suaves sem "acne" nas paredes
     this.scene.add(dir);
     this.scene.add(dir.target);
+    // preenchimento frio e suave do lado oposto — visual cartoon coeso
+    const fill = new THREE.DirectionalLight(0x8fa3d0, 0.32);
+    fill.position.set(-60, 40, -70);
+    this.scene.add(fill);
   }
 
   private texWall(): { map: THREE.CanvasTexture; emissiveMap: THREE.CanvasTexture } {
@@ -464,6 +469,13 @@ export class QuintalGame {
         }
       }
     }
+    // dégradê vertical estilo cartoon: base mais escura, topo mais claro
+    const grad = x.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, "rgba(255,248,230,0.22)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0)");
+    grad.addColorStop(1, "rgba(43,27,18,0.38)");
+    x.fillStyle = grad; x.fillRect(0, 0, 128, 128);
+
     const map = new THREE.CanvasTexture(c);
     map.colorSpace = THREE.SRGBColorSpace;
     const emissiveMap = new THREE.CanvasTexture(e);
@@ -663,8 +675,9 @@ export class QuintalGame {
         const sz = L.z + L.d / 2 - 0.18;
         for (let k = 1; k <= steps; k++) {
           const zc = sz + (steps - k) * 0.4 + 0.2;
-          pushGeo(darkGeos, 1.15, k * 0.27, 0.42, L.x + L.w / 2 - 0.8, L.y, zc);
-          this.addSurface({ minX: L.x + L.w / 2 - 1.35, maxX: L.x + L.w / 2 - 0.25, minZ: zc - 0.21, maxZ: zc + 0.21, top: L.y + k * 0.27 });
+          const top = L.y + k * 0.27;
+          pushGeo(darkGeos, 1.15, 0.07, 0.42, L.x + L.w / 2 - 0.8, top - 0.07, zc);
+          this.addSurface({ minX: L.x + L.w / 2 - 1.35, maxX: L.x + L.w / 2 - 0.25, minZ: zc - 0.21, maxZ: zc + 0.21, top });
         }
       }
       lajeEscada++;
@@ -768,16 +781,40 @@ export class QuintalGame {
     gg.addColorStop(1, "rgba(255,200,100,0)");
     gx.fillStyle = gg; gx.fillRect(0, 0, 64, 64);
     const glowTex = new THREE.CanvasTexture(glowC);
-    const poleMat = new THREE.MeshLambertMaterial({ color: 0x2e2c33 });
+    const poleMat = new THREE.MeshLambertMaterial({ color: 0x33303a });
+    const wireMat = new THREE.MeshLambertMaterial({ color: 0x1c1a20 });
+    const poleTops: THREE.Vector3[] = [];
     for (const px of [-45, -15, 15, 45]) {
-      this.box(0.14, 3.4, 0.14, poleMat, px, BANDS[0].y, 35.6);
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffe0a0 }));
-      bulb.position.set(px, BANDS[0].y + 3.5, 35.6);
-      this.scene.add(bulb);
+      const by = BANDS[0].y;
+      // base larga do poste
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.27, 0.3, 10), poleMat);
+      base.position.set(px, by + 0.15, 35.6); base.castShadow = true; this.scene.add(base);
+      // haste cônica (grossa embaixo, fina em cima)
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 3.4, 8), poleMat);
+      pole.position.set(px, by + 2.0, 35.6); pole.castShadow = true; this.scene.add(pole);
+      // braço inclinado no topo segurando a luminária sobre a rua
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 6), poleMat);
+      arm.position.set(px, by + 3.72, 35.6 - 0.36); arm.rotation.x = Math.PI / 2 - 0.28; this.scene.add(arm);
+      // luminária: cúpula + lâmpada brilhante + halo
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.17, 10, 1, true), new THREE.MeshLambertMaterial({ color: 0x3a3742, side: THREE.DoubleSide }));
+      shade.position.set(px, by + 3.82, 35.6 - 0.66); shade.castShadow = true; this.scene.add(shade);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffe0a0 }));
+      bulb.position.set(px, by + 3.72, 35.6 - 0.66); this.scene.add(bulb);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-      glow.position.copy(bulb.position); glow.scale.setScalar(2.2);
-      this.scene.add(glow);
+      glow.position.copy(bulb.position); glow.scale.setScalar(2.0); this.scene.add(glow);
+      poleTops.push(new THREE.Vector3(px, by + 3.95, 35.6));
     }
+    // fiação com barriga ligando os postes e descendo para os telhados
+    const wire = (a: THREE.Vector3, b: THREE.Vector3, sag: number) => {
+      const mid = a.clone().lerp(b, 0.5); mid.y -= sag;
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 14, 0.02, 5), wireMat);
+      this.scene.add(tube);
+    };
+    for (let i = 0; i < poleTops.length - 1; i++) wire(poleTops[i], poleTops[i + 1], 0.55);
+    wire(poleTops[0], new THREE.Vector3(-36, BANDS[1].y + 3.6, 28), 0.9);
+    wire(poleTops[1], new THREE.Vector3(-6, BANDS[1].y + 3.6, 28), 0.9);
+    wire(poleTops[2], new THREE.Vector3(24, BANDS[1].y + 3.6, 28), 0.9);
+    wire(poleTops[3], new THREE.Vector3(44, BANDS[1].y + 3.6, 28), 0.9);
 
     /* --- varais com roupas --- */
     const clothCols = [0xe85d75, 0xf4d35e, 0x4d9de0, 0xf2f2f2, 0x7bc950, 0xe15b9b];
@@ -888,7 +925,7 @@ export class QuintalGame {
     this.scene.add(mesh);
     // base de terra sob a malha (esconde a parte de baixo da colina)
     const base = new THREE.Mesh(new THREE.BoxGeometry(175, 9, 175), new THREE.MeshLambertMaterial({ color: 0x57452f }));
-    base.position.set(0, -6.2, 0);
+    base.position.set(0, -7, 0);
     base.receiveShadow = true;
     this.scene.add(base);
   }
@@ -908,33 +945,53 @@ export class QuintalGame {
 
   private buildPlayer() {
     const skin = new THREE.MeshLambertMaterial({ color: 0xd99a6c });
-    const shirt = new THREE.MeshLambertMaterial({ color: 0xf4f1e8 });
-    const pants = new THREE.MeshLambertMaterial({ color: 0x2b3a67 });
+    const shirt = new THREE.MeshLambertMaterial({ color: 0xf2efe4 });
+    const pants = new THREE.MeshLambertMaterial({ color: 0x2c3e6b });
+    const shoeM = new THREE.MeshLambertMaterial({ color: 0x26242c });
     const capMat = new THREE.MeshLambertMaterial({ color: 0xe8452e });
 
-    const mkPivot = (geo: THREE.BoxGeometry, mat: THREE.Material, y: number) => {
-      geo.translate(0, -geo.parameters.height / 2, 0);
-      const m = new THREE.Mesh(geo, mat);
-      m.position.y = y; m.castShadow = true;
-      this.player.add(m);
+    // membro em cápsula com pivô na junta — corpo arredondado, sem blocos
+    const limb = (r: number, len: number, mat: THREE.Material): THREE.Mesh => {
+      const g = new THREE.CapsuleGeometry(r, len, 4, 12);
+      g.translate(0, -(len / 2 + r), 0); // junta (topo) na origem, membro pende
+      const m = new THREE.Mesh(g, mat);
+      m.castShadow = true;
       return m;
     };
-    this.legL = mkPivot(new THREE.BoxGeometry(0.17, 0.5, 0.2), pants, 0.52);
-    this.legL.position.x = -0.12;
-    this.legR = mkPivot(new THREE.BoxGeometry(0.17, 0.5, 0.2), pants, 0.52);
-    this.legR.position.x = 0.12;
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.56, 0.28), shirt);
-    torso.position.y = 0.82; torso.castShadow = true; this.player.add(torso);
-    this.armL = mkPivot(new THREE.BoxGeometry(0.12, 0.46, 0.15), skin, 1.06);
-    this.armL.position.x = -0.32;
-    this.armR = mkPivot(new THREE.BoxGeometry(0.12, 0.46, 0.15), skin, 1.06);
-    this.armR.position.x = 0.32;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), skin);
-    head.position.y = 1.3; head.castShadow = true; this.player.add(head);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.1, 10), capMat);
-    cap.position.y = 1.42; this.player.add(cap);
-    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.035, 0.2), capMat);
-    brim.position.set(0, 1.4, 0.22); this.player.add(brim);
+    const ball = (r: number, mat: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
+      m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+    };
+
+    // pernas (pivô no quadril) + tênis
+    this.legL = limb(0.11, 0.58, pants); this.legL.position.set(-0.13, 0.92, 0); this.player.add(this.legL);
+    this.legR = limb(0.11, 0.58, pants); this.legR.position.set(0.13, 0.92, 0); this.player.add(this.legR);
+    ball(0.1, shoeM, 0, -0.66, 0.06, this.legL);
+    ball(0.1, shoeM, 0, -0.66, 0.06, this.legR);
+
+    // quadril + tronco: cápsulas que se fundem num corpo inteiriço
+    const pelvis = new THREE.Mesh(new THREE.CapsuleGeometry(0.19, 0.12, 4, 12), pants);
+    pelvis.position.y = 0.95; pelvis.castShadow = true; this.player.add(pelvis);
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.21, 0.42, 4, 12), shirt);
+    torso.position.y = 1.19; torso.castShadow = true; this.player.add(torso);
+
+    // ombros + braços (pivô no ombro) + mãos
+    ball(0.1, shirt, -0.27, 1.42, 0, this.player);
+    ball(0.1, shirt, 0.27, 1.42, 0, this.player);
+    this.armL = limb(0.075, 0.4, shirt); this.armL.position.set(-0.3, 1.42, 0); this.player.add(this.armL);
+    this.armR = limb(0.075, 0.4, shirt); this.armR.position.set(0.3, 1.42, 0); this.player.add(this.armR);
+    ball(0.07, skin, 0, -0.5, 0, this.armL);
+    ball(0.07, skin, 0, -0.5, 0, this.armR);
+
+    // pescoço + cabeça + boné
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 10), skin);
+    neck.position.y = 1.5; this.player.add(neck);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), skin);
+    head.position.y = 1.64; head.scale.set(1, 1.06, 1); head.castShadow = true; this.player.add(head);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.185, 0.09, 14), capMat);
+    cap.position.y = 1.77; cap.castShadow = true; this.player.add(cap);
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.2), capMat);
+    brim.position.set(0, 1.74, 0.2); this.player.add(brim);
 
     this.player.position.copy(this.pPos);
     this.scene.add(this.player);
@@ -1554,6 +1611,7 @@ export class QuintalGame {
     for (const n of this.npcs) {
       n.x += n.dir * n.sp * dt;
       if (Math.abs(n.x) > n.range) { n.dir *= -1; }
+      n.y = this.terrainH(n.x, n.z); // acompanha a encosta orgânica
       n.g.position.x = n.x;
       n.g.position.y = n.y + Math.abs(Math.sin(t * 6 + n.ph)) * 0.05;
       n.g.rotation.y = n.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
