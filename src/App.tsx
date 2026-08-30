@@ -191,7 +191,7 @@ function ShopPanel({ hud, game }: { hud: HudData; game: QuintalGame }) {
     <div className="slide-up absolute right-3 top-1/2 z-20 w-[300px] -translate-y-1/2 sm:right-6">
       <div className="hud-panel px-5 py-4">
         <div className="flex items-center justify-between">
-          <h3 className={`font-display text-2xl tracking-wide ${isMercado ? "text-sol-400" : "text-neon-500"}`}>
+          <h3 className={`font-display text-2xl tracking-wide ${isMercado ? "text-sol-400" : "text-rojo-500"}`}>
             {isMercado ? "MERCADINHO DO ZÉ" : "ESCONDERIJO"}
           </h3>
           <button onClick={() => game.closeShop()} className="hud-chip px-2.5 py-1 text-xs font-bold text-laje-100/80 hover:text-laje-100">FECHAR</button>
@@ -285,8 +285,8 @@ export default function App() {
           <p className="px-1 pb-1 text-right font-display text-sm tracking-[0.2em] text-laje-100/60">RADAR</p>
           <canvas ref={minimapRef} width={176} height={176} className="block w-36 sm:w-44" />
           <div className="flex justify-between px-1 pt-1 text-[9.5px] font-bold tracking-wider">
-            <span className="text-grana-400">■ MERCADO</span>
-            <span className="text-neon-500">■ RECEPTADOR</span>
+            <span className="text-sol-400">■ MERCADO</span>
+            <span className="text-rojo-500">■ RECEPTADOR</span>
           </div>
         </div>
         {hud && hud.screen !== "start" && (
