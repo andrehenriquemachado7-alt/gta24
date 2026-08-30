@@ -161,7 +161,7 @@ const GRAV = 26;
 const JUMP_V = 8.6;
 const SPEED = 6.2;
 const CAM_DIST = 5;
-const RAMP_W = 2.6;         // meia-largura da rampa entre patamares
+const RAMP_W = 1.9;         // meia-largura da rampa entre patamares (morro mais íngreme)
 const GROW_T1 = 16;   // broto -> vegetativa
 const GROW_T2 = 38;   // -> flora (colheita)
 
@@ -408,23 +408,53 @@ export class QuintalGame {
     sun.position.set(-50, 24, 380);
     this.scene.add(sun);
 
-    // mar
+    // mar da baía de Guanabara (raso perto da orla, fundo longe)
     const sea = new THREE.Mesh(
       new THREE.PlaneGeometry(1200, 500),
-      new THREE.MeshLambertMaterial({ color: 0x1d6d8f })
+      new THREE.MeshLambertMaterial({ color: 0x14617f })
     );
     sea.rotation.x = -Math.PI / 2;
     sea.position.set(0, -1.4, 300);
     this.scene.add(sea);
+    const shallow = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 60),
+      new THREE.MeshLambertMaterial({ color: 0x1d7f96 })
+    );
+    shallow.rotation.x = -Math.PI / 2;
+    shallow.position.set(0, -1.3, 78);
+    this.scene.add(shallow);
 
-    // montanhas do outro lado da baía (silhueta estilo Pão de Açúcar)
+    // ---- cartão-postal do Rio: Pão de Açúcar, Urca, bondinho, Corcovado e Cristo ----
     const mtMat = new THREE.MeshLambertMaterial({ color: 0x3c2b55 });
-    const m1 = new THREE.Mesh(new THREE.ConeGeometry(64, 78, 7), mtMat);
-    m1.position.set(150, -2, 380); this.scene.add(m1);
-    const m2 = new THREE.Mesh(new THREE.SphereGeometry(34, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), mtMat);
-    m2.position.set(-160, -2, 360); m2.scale.y = 1.5; this.scene.add(m2);
-    const m3 = new THREE.Mesh(new THREE.ConeGeometry(40, 46, 6), mtMat);
-    m3.position.set(40, -2, 420); this.scene.add(m3);
+    const sugar = new THREE.Mesh(new THREE.SphereGeometry(30, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2), mtMat);
+    sugar.scale.set(1, 1.8, 1); sugar.position.set(-150, -2, 320); this.scene.add(sugar);
+    const urca = new THREE.Mesh(new THREE.SphereGeometry(17, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mtMat);
+    urca.scale.set(1, 1.5, 1); urca.position.set(-92, -2, 305); this.scene.add(urca);
+    // bondinho: cabo esticado + cabines penduradas
+    this.scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-150, 50, 320), new THREE.Vector3(-92, 23, 305)]),
+      new THREE.LineBasicMaterial({ color: 0x191428 })
+    ));
+    const cabinMat = new THREE.MeshBasicMaterial({ color: 0xffd23f });
+    const cab1 = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 2), cabinMat);
+    cab1.position.set(-128, 39, 314); this.scene.add(cab1);
+    const cab2 = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 1.8), cabinMat);
+    cab2.position.set(-110, 30, 310); this.scene.add(cab2);
+    // Corcovado com o Cristo Redentor de braços abertos
+    const corc = new THREE.Mesh(new THREE.ConeGeometry(24, 92, 8), mtMat);
+    corc.position.set(160, -4, 295); this.scene.add(corc);
+    const cristoMat = new THREE.MeshLambertMaterial({ color: 0xe9e5da, emissive: 0x9aa2b8, emissiveIntensity: 0.55 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), cristoMat);
+    body.position.set(160, 92, 295); this.scene.add(body);
+    const arms = new THREE.Mesh(new THREE.BoxGeometry(13, 1.4, 1.4), cristoMat);
+    arms.position.set(160, 94.5, 295); this.scene.add(arms);
+    const headC = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 8), cristoMat);
+    headC.position.set(160, 97.4, 295); this.scene.add(headC);
+    // serras ao fundo da baía
+    const s1 = new THREE.Mesh(new THREE.ConeGeometry(60, 55, 7), mtMat);
+    s1.position.set(40, -4, 400); this.scene.add(s1);
+    const s2 = new THREE.Mesh(new THREE.ConeGeometry(48, 40, 7), mtMat);
+    s2.position.set(-240, -4, 380); this.scene.add(s2);
   }
 
   private buildLights() {
@@ -483,6 +513,59 @@ export class QuintalGame {
     return { map, emissiveMap };
   }
 
+  /* tijolo à vista — o visual "em construção eterna" da favela */
+  private texBrick(): THREE.CanvasTexture {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#93502f"; x.fillRect(0, 0, 128, 128);
+    const bw = 24, bh = 11;
+    for (let r = 0; r < 12; r++) {
+      const off = (r % 2) * (bw / 2);
+      for (let col = -1; col < 7; col++) {
+        const v = 0.78 + Math.random() * 0.36;
+        x.fillStyle = `rgb(${Math.floor(154 * v)},${Math.floor(76 * v)},${Math.floor(48 * v)})`;
+        x.fillRect(col * bw + off + 1, r * bh + 1, bw - 2, bh - 2);
+      }
+    }
+    x.fillStyle = "rgba(206,186,160,0.9)";
+    for (let r = 1; r < 12; r++) x.fillRect(0, r * bh - 1, 128, 2);
+    // infiltração no pé do muro
+    for (let i = 0; i < 7; i++) {
+      x.fillStyle = `rgba(30,20,14,${0.12 + Math.random() * 0.18})`;
+      x.fillRect(Math.random() * 128, 128 - (8 + Math.random() * 26), 10 + Math.random() * 30, 30);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /* mural de grafite procedural para os becos */
+  private texGraffiti(): THREE.CanvasTexture {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#8f4a2c"; x.fillRect(0, 0, 256, 128);
+    const cols = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#ff4fd8", "#f2f2f2"];
+    for (let i = 0; i < 26; i++) {
+      x.fillStyle = cols[Math.floor(Math.random() * cols.length)];
+      x.globalAlpha = 0.22 + Math.random() * 0.5;
+      x.beginPath();
+      x.arc(Math.random() * 256, Math.random() * 128, 6 + Math.random() * 22, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.globalAlpha = 1;
+    const words = ["FÉ", "PAZ", "RIO 40°", "VIDA", "MORRO"];
+    const word = words[Math.floor(Math.random() * words.length)];
+    x.font = "900 56px \"Bebas Neue\", \"Arial Narrow\", sans-serif";
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.strokeStyle = "#101117"; x.lineWidth = 10;
+    x.strokeText(word, 128, 64);
+    x.fillStyle = cols[Math.floor(Math.random() * cols.length)];
+    x.fillText(word, 128, 64);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
   private makeSign(text: string, bg: string, fg: string, w = 512, h = 128): { tex: THREE.CanvasTexture; redraw: () => void } {
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     const draw = () => {
@@ -530,6 +613,22 @@ export class QuintalGame {
     const concreteGeos: THREE.BufferGeometry[] = [];
     const darkGeos: THREE.BufferGeometry[] = [];
     const metalGeos: THREE.BufferGeometry[] = [];
+    const brickGeos: THREE.BufferGeometry[] = [];   // casas de tijolo aparente
+    const doorGeos: THREE.BufferGeometry[] = [];    // portas/antenas escuras
+    const frameGeos: THREE.BufferGeometry[] = [];   // portões, esquadrias, AC, ferragens
+    const paintGeos: THREE.BufferGeometry[] = [];   // faixas pintadas dos degraus
+    const wireGeos: THREE.BufferGeometry[] = [];    // emaranhado de fios
+    // coleta para a fiação, letreiros e murais
+    const anchors: THREE.Vector3[] = [];
+    const signHouses: { x: number; z: number; w: number; d: number; y: number }[] = [];
+    const muralHouses: { x: number; z: number; w: number; d: number; y: number; hh: number }[] = [];
+    const brickMat = new THREE.MeshLambertMaterial({ map: this.texBrick() });
+    const frameMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const doorMat = new THREE.MeshLambertMaterial({ color: 0x241f28 });
+    const paintMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const PAINT = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#ff4fd8"];
+    const GATE_COLS = ["#2f7d5b", "#3b5fa0", "#a33d2f", "#545a66", "#7a5a24"];
+    const WIN_COLS = ["#e85d75", "#4d9de0", "#f4d35e", "#3fb8af", "#9b72cf", "#f2f2f2"];
     // cilindro "cozido" entre dois pontos (corrimãos, postes, fios)
     const tubeGeo = (a: THREE.Vector3, b: THREE.Vector3, r: number) => {
       const dir = new THREE.Vector3().subVectors(b, a);
@@ -579,6 +678,8 @@ export class QuintalGame {
           pushGeo(k % 2 ? concreteGeos : darkGeos, STAIR_W, 0.09, TREAD, gx, top - 0.09, zc);
           // espelho curto na borda frontal para dar leitura de degrau
           pushGeo(darkGeos, STAIR_W, RISE, 0.05, gx, top - RISE, zc - TREAD / 2 + 0.025);
+          // faixa pintada na borda (azulejo colorido de favela)
+          pushGeo(paintGeos, STAIR_W - 0.12, 0.06, 0.09, gx, top - 0.06, zc - TREAD / 2 + 0.02, PAINT[(k + st.band) % PAINT.length]);
           this.addSurface({ minX: gx - STAIR_W / 2, maxX: gx + STAIR_W / 2, minZ: zc - TREAD / 2, maxZ: zc + TREAD / 2, top });
         }
         // corrimão fino inclinado + postes finos (sem parede maciça)
@@ -623,11 +724,26 @@ export class QuintalGame {
         const h = 2.9 + rng() * 1.9;
         const isLaje = rng() < 0.34;
         const hh = isLaje ? 3.0 : h;
+        const isBrick = rng() < 0.34; // ~1/3 das casas é tijolo aparente
         const col = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
-        pushGeo(houseGeos, w, hh, d, p.x, b.y, p.z, col);
+        if (isBrick) pushGeo(brickGeos, w, hh, d, p.x, b.y, p.z);
+        else pushGeo(houseGeos, w, hh, d, p.x, b.y, p.z, col);
         this.addCollider({ minX: p.x - w / 2, maxX: p.x + w / 2, minZ: p.z - d / 2, maxZ: p.z + d / 2, top: b.y + hh, bottom: b.y - 0.2 });
         this.addFlatRect(p.x - w / 2 - 1.2, p.x + w / 2 + 1.2, p.z - d / 2 - 1.2, p.z + d / 2 + 1.2);
         pushGeo(roofGeos, w + 0.3, 0.16, d + 0.3, p.x, b.y + hh, p.z);
+        // --- fachada viva: porta escura, portão de metal, janela com esquadria, ar-condicionado, antena ---
+        pushGeo(doorGeos, 0.85, 1.85, 0.07, p.x - w / 6, b.y, p.z + d / 2 - 0.02);
+        if (rng() < 0.55) pushGeo(frameGeos, 1.45, 1.5, 0.08, p.x + w / 5, b.y, p.z + d / 2 - 0.01, GATE_COLS[Math.floor(rng() * GATE_COLS.length)]);
+        pushGeo(frameGeos, 0.07, 0.74, 0.74, p.x + w / 2 - 0.01, b.y + 1.25 + rng() * 0.5, p.z + (rng() - 0.5) * d * 0.4, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
+        if (rng() < 0.42) pushGeo(frameGeos, 0.44, 0.3, 0.32, p.x - w / 2 + 0.02, b.y + 2.05, p.z + (rng() - 0.5) * d * 0.4, "#c9cdd4");
+        if (rng() < 0.3) {
+          pushGeo(doorGeos, 0.03, 0.9, 0.03, p.x + w / 4, b.y + hh + 0.16, p.z - d / 5);
+          pushGeo(doorGeos, 0.5, 0.03, 0.03, p.x + w / 4, b.y + hh + 0.82, p.z - d / 5);
+        }
+        // pontos para o emaranhado de fios + candidatos a letreiro/mural
+        if (rng() < 0.5) anchors.push(new THREE.Vector3(p.x + (rng() < 0.5 ? -w / 2 : w / 2), b.y + hh + 0.25, p.z + (rng() - 0.5) * d));
+        if (!isLaje && !isBrick && rng() < 0.16) signHouses.push({ x: p.x, z: p.z, w, d, y: b.y });
+        else if (isBrick && rng() < 0.12) muralHouses.push({ x: p.x, z: p.z, w, d, y: b.y, hh });
         if (isLaje) {
           lajeHouses.push({ x: p.x, z: p.z, w, d, top: b.y + hh, y: b.y });
         }
@@ -669,6 +785,14 @@ export class QuintalGame {
         this.scene.add(tank);
         this.addCollider({ minX: tank.position.x - 0.5, maxX: tank.position.x + 0.5, minZ: tank.position.z - 0.5, maxZ: tank.position.z + 0.5, top: L.top + 0.7, bottom: L.top });
       }
+      // laje em obra eterna: pilha de tijolos + ferragens espetadas
+      if (lajeEscada % 3 === 0) {
+        for (let rr = 0; rr < 3; rr++)
+          for (let cc = 0; cc < 3 - rr; cc++)
+            pushGeo(brickGeos, 0.36, 0.17, 0.22, L.x - L.w / 4 + cc * 0.38 + rr * 0.19, L.top + rr * 0.17, L.z + L.d / 5);
+      }
+      for (let rb = 0; rb < 4; rb++)
+        pushGeo(frameGeos, 0.022, 0.5 + (rb % 3) * 0.25, 0.022, L.x + L.w / 3 + (rb % 2) * 0.16, L.top + 0.16, L.z - L.d / 3 + Math.floor(rb / 2) * 0.16, "#7a4a2e");
       // escada externa em algumas lajes
       if (lajeEscada < 8) {
         const steps = Math.round((L.top - L.y) / 0.27);
@@ -805,17 +929,107 @@ export class QuintalGame {
       glow.position.copy(bulb.position); glow.scale.setScalar(2.0); this.scene.add(glow);
       poleTops.push(new THREE.Vector3(px, by + 3.95, poleZ));
     }
-    // fiação com barriga ligando os postes e descendo para os telhados
+    // emaranhado de fios — a assinatura visual da favela carioca
     const wire = (a: THREE.Vector3, b: THREE.Vector3, sag: number) => {
       const mid = a.clone().lerp(b, 0.5); mid.y -= sag;
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 14, 0.02, 5), wireMat);
-      this.scene.add(tube);
+      wireGeos.push(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 10, 0.018, 4));
     };
-    for (let i = 0; i < poleTops.length - 1; i++) wire(poleTops[i], poleTops[i + 1], 0.55);
-    wire(poleTops[0], new THREE.Vector3(-36, BANDS[1].y + 3.6, 28), 0.9);
-    wire(poleTops[1], new THREE.Vector3(-6, BANDS[1].y + 3.6, 28), 0.9);
-    wire(poleTops[2], new THREE.Vector3(24, BANDS[1].y + 3.6, 28), 0.9);
-    wire(poleTops[3], new THREE.Vector3(44, BANDS[1].y + 3.6, 28), 0.9);
+    // feixes paralelos entre postes, em alturas e barrigas diferentes
+    for (let i = 0; i < poleTops.length - 1; i++) {
+      for (let j = 0; j < 3; j++) {
+        const a = poleTops[i].clone(); a.y -= j * 0.22; a.x += (j - 1) * 0.07;
+        const b = poleTops[i + 1].clone(); b.y -= j * 0.18; b.x += (j - 1) * 0.07;
+        wire(a, b, 0.45 + j * 0.38);
+      }
+    }
+    // gambiarras: descidas dos postes para os telhados e travessias entre casas
+    for (let i = 0; i < Math.min(anchors.length, 24); i++) {
+      const a = anchors[i];
+      const pole = poleTops[i % poleTops.length];
+      const dPole = a.distanceTo(pole);
+      if (dPole < 70) wire(pole, a, dPole * 0.06 + 0.5);
+      const b = anchors[(i * 7 + 3) % anchors.length];
+      if (b !== a && a.distanceTo(b) < 24) wire(a, b, a.distanceTo(b) * 0.09 + 0.4);
+    }
+
+    /* --- merge dos detalhes (tijolo, portas, portões, tinta, fios) --- */
+    buildMerged(brickGeos, brickMat);
+    buildMerged(doorGeos, doorMat);
+    buildMerged(frameGeos, frameMat);
+    buildMerged(paintGeos, paintMat);
+    buildMerged(wireGeos, wireMat);
+
+    /* --- letreiros pintados à mão nas fachadas --- */
+    const SIGN_DATA: [string, string, string][] = [
+      ["BAR DO BIGODE", "#173f2a", "#ffd23f"],
+      ["SALÃO DA NEGA", "#471033", "#ff4fd8"],
+      ["AÇAÍ DO MORRO", "#241a4a", "#7ef29a"],
+      ["PADARIA PAO QUENTE", "#6e2410", "#f4d35e"],
+      ["LAN HOUSE", "#0e2836", "#4d9de0"],
+      ["DEPOSITAO 2 IRMAOS", "#3a3547", "#f2a541"],
+    ];
+    signHouses.slice(0, 6).forEach((hs, i) => {
+      const [txt, bg, fg] = SIGN_DATA[i % SIGN_DATA.length];
+      const s = this.makeSign(txt, bg, fg, 512, 104);
+      this.signRedraws.push(s.redraw);
+      const wS = Math.min(hs.w - 0.5, 3.6);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(wS, wS * 0.2), new THREE.MeshBasicMaterial({ map: s.tex, transparent: true }));
+      sign.position.set(hs.x, hs.y + 2.35, hs.z + hs.d / 2 + 0.05);
+      this.scene.add(sign);
+    });
+
+    /* --- murais de grafite nos becos --- */
+    muralHouses.slice(0, 4).forEach((hm) => {
+      const mH = Math.min(hm.hh - 0.5, 2.3);
+      const mural = new THREE.Mesh(new THREE.PlaneGeometry(hm.d - 0.5, mH), new THREE.MeshLambertMaterial({ map: this.texGraffiti() }));
+      mural.position.set(hm.x - hm.w / 2 - 0.06, hm.y + mH / 2 + 0.1, hm.z);
+      mural.rotation.y = -Math.PI / 2;
+      this.scene.add(mural);
+    });
+
+    /* --- palmeiras nas bordas do morro --- */
+    const palmTrunks: THREE.BufferGeometry[] = [];
+    const palmLeaves: THREE.BufferGeometry[] = [];
+    const mkPalm = (ppx: number, ppz: number, ph: number, lean: number) => {
+      const py = this.terrainH(ppx, ppz);
+      const trunk = new THREE.CylinderGeometry(0.08, 0.17, ph, 6);
+      trunk.translate(0, ph / 2, 0);
+      trunk.rotateZ(lean);
+      trunk.translate(ppx, py, ppz);
+      palmTrunks.push(trunk);
+      const tx = ppx + Math.sin(lean) * ph, ty = py + Math.cos(lean) * ph;
+      for (let fr = 0; fr < 7; fr++) {
+        const a = (fr / 7) * Math.PI * 2;
+        const leaf = new THREE.PlaneGeometry(1.6, 0.34);
+        leaf.translate(0.8, 0, 0);
+        leaf.rotateZ(-0.42 - (fr % 2) * 0.14);
+        leaf.rotateY(a);
+        leaf.translate(tx, ty, ppz);
+        palmLeaves.push(leaf);
+      }
+      const coco = new THREE.SphereGeometry(0.13, 6, 5);
+      coco.translate(tx, ty - 0.18, ppz);
+      palmTrunks.push(coco);
+    };
+    for (const [ppx, ppz, ph, ln] of [
+      [-56, -50, 5.2, 0.12], [55, -47, 4.4, -0.16], [-57, 3, 5.6, 0.1],
+      [56, -6, 4.8, -0.1], [-52, 25, 4.2, 0.14], [50, 15, 5.0, -0.12],
+    ] as [number, number, number, number][]) mkPalm(ppx, ppz, ph, ln);
+    buildMerged(palmTrunks, new THREE.MeshLambertMaterial({ color: 0x6e4a2e }));
+    buildMerged(palmLeaves, new THREE.MeshLambertMaterial({ color: 0x3f8f3a, side: THREE.DoubleSide }));
+
+    /* --- cidade aos pés do morro, na beira da baía --- */
+    const cityGeos: THREE.BufferGeometry[] = [];
+    const CITY_COLS = ["#8f8a94", "#a89e92", "#7c7680", "#97a0a8", "#b0a48e", "#6f6a76"];
+    for (let cx = -80; cx <= 80; cx += 8.5) {
+      pushGeo(cityGeos, 4 + rng() * 3.4, 3 + rng() * 9, 4 + rng() * 3.4, cx + (rng() - 0.5) * 3, -0.5, 68 + rng() * 26, CITY_COLS[Math.floor(rng() * CITY_COLS.length)]);
+    }
+    pushGeo(cityGeos, 5.5, 17, 5.5, -34, -0.5, 86, "#b3ac9e");
+    pushGeo(cityGeos, 4.5, 21, 4.5, 18, -0.5, 92, "#9aa3ab");
+    buildMerged(cityGeos, new THREE.MeshLambertMaterial({
+      vertexColors: true, map: wallTex.map, emissiveMap: wallTex.emissiveMap,
+      emissive: 0xffc766, emissiveIntensity: 0.7,
+    }));
 
     /* --- varais com roupas --- */
     const clothCols = [0xe85d75, 0xf4d35e, 0x4d9de0, 0xf2f2f2, 0x7bc950, 0xe15b9b];
@@ -1434,7 +1648,7 @@ export class QuintalGame {
     }
     const edge = Math.max(Math.max(0, Math.abs(x) - 58) / 4, Math.max(0, Math.abs(z) - 58) / 4);
     if (edge > 0) y -= edge * edge * 5;
-    y += this.n2(x, z) * 0.16 * this.flattenMask(x, z);
+    y += this.n2(x, z) * 0.3 * this.flattenMask(x, z);
     return y;
   }
 
