@@ -19,6 +19,7 @@ export interface HudData {
   toast: { id: number; text: string } | null;
   shop: ShopKind;
   muted: boolean;
+  debug: boolean;
   growing: number;
   ready: number;
   stats: { time: number; harvested: number; sold: number };
@@ -339,6 +340,12 @@ export class QuintalGame {
   private lastT = 0;
   private disposed = false;
 
+  // modo debug: wireframe vermelho dos colisores/superfícies/jogador
+  private debug = false;
+  private debugBuilt = false;
+  private debugGroup = new THREE.Group();
+  private debugPlayerBox: THREE.LineSegments | null = null;
+
   constructor(opts: {
     container: HTMLElement;
     minimap: HTMLCanvasElement;
@@ -368,6 +375,9 @@ export class QuintalGame {
     this.buildLights();
     this.buildWorld();
     this.buildPlayer();
+
+    this.debugGroup.visible = false;
+    this.scene.add(this.debugGroup);
 
     this.bindEvents();
     this.resize();
@@ -1485,6 +1495,7 @@ export class QuintalGame {
       case "KeyE": case "Enter": if (!e.repeat) this.pressAction(); break;
       case "KeyP": if (!e.repeat) this.togglePause(); break;
       case "KeyM": if (!e.repeat) this.toggleMute(); break;
+      case "KeyC": if (!e.repeat) this.toggleDebug(); break;
       case "Escape":
         if (!e.repeat) {
           if (this.shop) this.closeShop();
@@ -2114,6 +2125,7 @@ export class QuintalGame {
       toast: this.toastNow,
       shop: this.shop,
       muted: this.sfx.muted,
+      debug: this.debug,
       growing: this.plants.filter((p) => p.stage < 3).length,
       ready: this.plants.filter((p) => p.stage >= 3).length,
       stats: { time: Math.floor(this.simTime), harvested: this.harvested, sold: this.sold },
@@ -2240,8 +2252,77 @@ export class QuintalGame {
     }
     this.updateWorld(dt, t);
     this.particles.update(dt);
+    if (this.debug && this.debugPlayerBox) {
+      this.debugPlayerBox.position.set(this.pPos.x, this.pPos.y + PLAYER_H / 2, this.pPos.z);
+    }
     this.drawMinimap();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /* ---------------- modo debug visual (tecla C / botão DBG) ---------------- */
+
+  // emite as 12 arestas de uma caixa AABB como pares de vértices
+  private pushBoxEdges(
+    arr: number[], cx: number, cy: number, cz: number,
+    hx: number, hy: number, hz: number
+  ) {
+    const x0 = cx - hx, x1 = cx + hx;
+    const y0 = cy - hy, y1 = cy + hy;
+    const z0 = cz - hz, z1 = cz + hz;
+    const c = [
+      x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1,
+      x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1,
+    ];
+    const e = [0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7];
+    for (let i = 0; i < e.length; i++) {
+      const v = e[i] * 3;
+      arr.push(c[v], c[v + 1], c[v + 2]);
+    }
+  }
+
+  // monta TODOS os wireframes de uma vez (2 draw calls para o mundo inteiro)
+  private buildDebug() {
+    // caixas de colisão horizontal (paredes, obstáculos) — VERMELHO VIVO
+    const colArr: number[] = [];
+    for (const cd of this.colliders) {
+      this.pushBoxEdges(
+        colArr,
+        (cd.minX + cd.maxX) / 2, (cd.top + cd.bottom) / 2, (cd.minZ + cd.maxZ) / 2,
+        (cd.maxX - cd.minX) / 2, (cd.top - cd.bottom) / 2, (cd.maxZ - cd.minZ) / 2
+      );
+    }
+    const colGeo = new THREE.BufferGeometry();
+    colGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(colArr), 3));
+    this.debugGroup.add(new THREE.LineSegments(colGeo, new THREE.LineBasicMaterial({ color: 0xff2020 })));
+
+    // superfícies andáveis (lajes, degraus, telhados) — VERMELHO-ALARANJADO
+    const surArr: number[] = [];
+    for (const s of this.surfaces) {
+      this.pushBoxEdges(
+        surArr,
+        (s.minX + s.maxX) / 2, s.top - 0.04, (s.minZ + s.maxZ) / 2,
+        (s.maxX - s.minX) / 2, 0.04, (s.maxZ - s.minZ) / 2
+      );
+    }
+    const surGeo = new THREE.BufferGeometry();
+    surGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(surArr), 3));
+    this.debugGroup.add(new THREE.LineSegments(surGeo, new THREE.LineBasicMaterial({ color: 0xff7a1f })));
+
+    // caixa de colisão do jogador (atualizada por frame) — VERMELHO VIVO
+    const pArr: number[] = [];
+    this.pushBoxEdges(pArr, 0, 0, 0, PLAYER_R, PLAYER_H / 2, PLAYER_R);
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pArr), 3));
+    this.debugPlayerBox = new THREE.LineSegments(pGeo, new THREE.LineBasicMaterial({ color: 0xff2020 }));
+    this.debugGroup.add(this.debugPlayerBox);
+  }
+
+  toggleDebug() {
+    if (!this.debugBuilt) { this.buildDebug(); this.debugBuilt = true; }
+    this.debug = !this.debug;
+    this.debugGroup.visible = this.debug;
+    this.toast(this.debug ? "DEBUG: colisores visíveis (C p/ sair)" : "DEBUG desligado");
+    this.emitHud(true);
   }
 
   dispose() {

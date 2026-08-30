@@ -293,6 +293,13 @@ export default function App() {
           <div className="flex gap-1.5">
             <button onClick={() => g?.togglePause()} className="hud-chip p-2 text-laje-100/80 hover:text-laje-100" aria-label="Pausar"><PauseIcon /></button>
             <button onClick={() => g?.toggleMute()} className="hud-chip p-2 text-laje-100/80 hover:text-laje-100" aria-label="Som"><SoundIcon off={hud.muted} /></button>
+            <button
+              onClick={() => g?.toggleDebug()}
+              className={`hud-chip p-2 px-2.5 font-display text-base tracking-widest ${hud.debug ? "text-rojo-500 ring-1 ring-rojo-500/60" : "text-laje-100/80 hover:text-laje-100"}`}
+              aria-label="Mostrar caixas de colisão"
+            >
+              DBG
+            </button>
           </div>
         )}
       </div>
@@ -357,7 +364,7 @@ export default function App() {
           {/* dica de controles (desktop, some sozinho) */}
           {playing && !isTouch && !hud.shop && (
             <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden text-[11px] font-medium tracking-wide text-laje-100/40 md:block">
-              WASD mover · ESPAÇO pular · E agir · arrastar gira a câmera · P pausa
+              WASD mover · ESPAÇO pular · E agir · arrastar gira a câmera · P pausa · C debug colisões
             </div>
           )}
 
