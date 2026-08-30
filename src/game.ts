@@ -154,12 +154,14 @@ interface Plant {
 }
 
 const STEP_TOL = 0.42;      // altura máxima de degrau automático
+const MAX_CLIMB = 0.52;     // subida máxima de terreno por passo (rampas suaves)
 const PLAYER_R = 0.34;      // raio de colisão
 const PLAYER_H = 1.68;
 const GRAV = 26;
 const JUMP_V = 8.6;
 const SPEED = 6.2;
 const CAM_DIST = 5;
+const RAMP_W = 2.6;         // meia-largura da rampa entre patamares
 const GROW_T1 = 16;   // broto -> vegetativa
 const GROW_T2 = 38;   // -> flora (colheita)
 
@@ -279,6 +281,10 @@ export class QuintalGame {
   private zones: Zone[] = [];
   private plants: Plant[] = [];
   private spotMeshes: THREE.Mesh[] = [];
+
+  // zonas "achatadas" do terreno orgânico (casas, rua, escadas, pontos)
+  private flatRects: { x0: number; x1: number; z0: number; z1: number }[] = [];
+  private flatCircles: { x: number; z: number; r: number }[] = [];
 
   // jogador
   private player = new THREE.Group();
@@ -507,12 +513,22 @@ export class QuintalGame {
     const concreteDark = new THREE.MeshLambertMaterial({ color: 0x6f685e });
 
     /* listas para merge (poucos draw calls -> roda liso no celular) */
-    const houseGeos: THREE.BoxGeometry[] = [];
-    const roofGeos: THREE.BoxGeometry[] = [];
-    const concreteGeos: THREE.BoxGeometry[] = [];
-    const darkGeos: THREE.BoxGeometry[] = [];
+    const houseGeos: THREE.BufferGeometry[] = [];
+    const roofGeos: THREE.BufferGeometry[] = [];
+    const concreteGeos: THREE.BufferGeometry[] = [];
+    const darkGeos: THREE.BufferGeometry[] = [];
+    const metalGeos: THREE.BufferGeometry[] = [];
+    // cilindro "cozido" entre dois pontos (corrimãos, postes, fios)
+    const tubeGeo = (a: THREE.Vector3, b: THREE.Vector3, r: number) => {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      const g = new THREE.CylinderGeometry(r, r, len, 6);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()));
+      g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+      return g;
+    };
     const pushGeo = (
-      list: THREE.BoxGeometry[], w: number, h: number, d: number,
+      list: THREE.BufferGeometry[], w: number, h: number, d: number,
       x: number, yBottom: number, z: number, color?: string
     ) => {
       const g = new THREE.BoxGeometry(w, h, d);
@@ -527,53 +543,43 @@ export class QuintalGame {
       list.push(g);
     };
 
-    /* --- platôs (laje do morro) --- */
-    for (const b of BANDS) {
-      const depth = b.z1 - b.z0;
-      pushGeo(concreteGeos, 120, 1.6, depth, 0, b.y - 1.6, (b.z0 + b.z1) / 2);
-      this.addSurface({ minX: -60, maxX: 60, minZ: b.z0, maxZ: b.z1, top: b.y });
-    }
-    // chão da rua principal (faixa de asfalto)
+    /* --- terreno orgânico ---
+       A encosta agora é uma colina contínua: patamares ligados por rampas
+       suaves (sem degraus retos) com ondulação orgânica. A malha é
+       construída no fim (depois de registrar as zonas planas). */
+    // chão da rua principal (faixa de asfalto) — mantém-se plana
     const road = this.box(120, 0.06, 9, new THREE.MeshLambertMaterial({ color: 0x4a4650 }), 0, BANDS[0].y, 39, false);
     road.receiveShadow = true;
+    this.addFlatRect(-60, 60, 34.2, 43.8);
 
-    /* --- muros de contenção entre platôs (colisão invisível) --- */
-    for (let i = 0; i < BANDS.length - 1; i++) {
-      const boundary = BANDS[i].z0;
-      const yLow = BANDS[i].y, yHigh = BANDS[i + 1].y;
-      const gaps = STAIRS.filter((s) => s.band === i).flatMap((s) => s.xs);
-      const xs: number[] = [];
-      gaps.forEach((gx) => xs.push(gx - 1.95, gx + 1.95));
-      xs.sort((a, b) => a - b);
-      let start = -60;
-      const segs: [number, number][] = [];
-      for (let k = 0; k < xs.length; k += 2) {
-        if (xs[k] > start) segs.push([start, xs[k]]);
-        start = xs[k + 1];
-      }
-      if (start < 60) segs.push([start, 60]);
-      for (const [a, b] of segs) {
-        this.addCollider({ minX: a, maxX: b, minZ: boundary - 0.35, maxZ: boundary + 0.35, top: yHigh + 0.3, bottom: yLow - 0.2 });
-      }
-    }
-
-    /* --- escadarias --- */
+    /* --- escadarias (estrutura vazada: degraus flutuantes + corrimão fino) --- */
     const N_STEPS = 10, RISE = 0.28, TREAD = 0.46, STAIR_W = 2.3;
     for (const st of STAIRS) {
       for (const gx of st.xs) {
         const yLow = BANDS[st.band].y;
         const boundary = BANDS[st.band].z0;
         const run = N_STEPS * TREAD;
+        const yHigh = yLow + N_STEPS * RISE;
         for (let k = 1; k <= N_STEPS; k++) {
           const zc = boundary + run / 2 - (k - 1) * TREAD - TREAD / 2;
-          pushGeo(k % 2 ? concreteGeos : darkGeos, STAIR_W, k * RISE, TREAD, gx, yLow, zc);
-          this.addSurface({ minX: gx - STAIR_W / 2, maxX: gx + STAIR_W / 2, minZ: zc - TREAD / 2, maxZ: zc + TREAD / 2, top: yLow + k * RISE });
+          const top = yLow + k * RISE;
+          // degrau flutuante (lâmina fina, sem bloco maciço embaixo)
+          pushGeo(k % 2 ? concreteGeos : darkGeos, STAIR_W, 0.09, TREAD, gx, top - 0.09, zc);
+          // espelho curto na borda frontal para dar leitura de degrau
+          pushGeo(darkGeos, STAIR_W, RISE, 0.05, gx, top - RISE, zc - TREAD / 2 + 0.025);
+          this.addSurface({ minX: gx - STAIR_W / 2, maxX: gx + STAIR_W / 2, minZ: zc - TREAD / 2, maxZ: zc + TREAD / 2, top });
         }
-        // corrimãos / muretas laterais
+        // corrimão fino inclinado + postes finos (sem parede maciça)
+        const zBot = boundary + run / 2 + 0.2, zTop = boundary - run / 2 - 0.2;
         for (const side of [-1, 1]) {
-          const wx = gx + side * (STAIR_W / 2 + 0.12);
-          pushGeo(darkGeos, 0.22, 1.1, run + 0.4, wx, yLow, boundary);
-          this.addCollider({ minX: wx - 0.14, maxX: wx + 0.14, minZ: boundary - run / 2 - 0.2, maxZ: boundary + run / 2 + 0.2, top: yLow + 1.1, bottom: yLow - 0.1 });
+          const wx = gx + side * (STAIR_W / 2 + 0.07);
+          metalGeos.push(tubeGeo(new THREE.Vector3(wx, yLow + 0.8, zBot), new THREE.Vector3(wx, yHigh + 0.8, zTop), 0.035));
+          for (let p = 0; p <= 2; p++) {
+            const t = p / 2;
+            const pz = zBot + (zTop - zBot) * t;
+            const py = yLow + (yHigh - yLow) * t;
+            metalGeos.push(tubeGeo(new THREE.Vector3(wx, py, pz), new THREE.Vector3(wx, py + 0.8, pz), 0.03));
+          }
         }
       }
     }
@@ -608,6 +614,7 @@ export class QuintalGame {
         const col = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
         pushGeo(houseGeos, w, hh, d, p.x, b.y, p.z, col);
         this.addCollider({ minX: p.x - w / 2, maxX: p.x + w / 2, minZ: p.z - d / 2, maxZ: p.z + d / 2, top: b.y + hh, bottom: b.y - 0.2 });
+        this.addFlatRect(p.x - w / 2 - 1.2, p.x + w / 2 + 1.2, p.z - d / 2 - 1.2, p.z + d / 2 + 1.2);
         pushGeo(roofGeos, w + 0.3, 0.16, d + 0.3, p.x, b.y + hh, p.z);
         if (isLaje) {
           lajeHouses.push({ x: p.x, z: p.z, w, d, top: b.y + hh, y: b.y });
@@ -664,7 +671,7 @@ export class QuintalGame {
     }
 
     /* --- merge das geometrias estáticas --- */
-    const buildMerged = (geos: THREE.BoxGeometry[], mat: THREE.Material) => {
+    const buildMerged = (geos: THREE.BufferGeometry[], mat: THREE.Material) => {
       if (!geos.length) return;
       const geo = mergeGeometries(geos);
       if (!geo) return;
@@ -681,6 +688,7 @@ export class QuintalGame {
     buildMerged(roofGeos, roofMat);
     buildMerged(concreteGeos, concrete);
     buildMerged(darkGeos, concreteDark);
+    buildMerged(metalGeos, new THREE.MeshLambertMaterial({ color: 0x413d4a }));
 
     /* --- mercadinho --- */
     {
@@ -688,6 +696,7 @@ export class QuintalGame {
       const mat = new THREE.MeshLambertMaterial({ color: 0xf2e9d8, map: wallTex.map, emissiveMap: wallTex.emissiveMap, emissive: 0xffc766, emissiveIntensity: 0.55 });
       this.box(6.4, 3.4, 5, mat, mx, my, mz);
       this.addCollider({ minX: mx - 3.2, maxX: mx + 3.2, minZ: mz - 2.5, maxZ: mz + 2.5, top: my + 3.4, bottom: my - 0.2 });
+      this.addFlatRect(mx - 5, mx + 5, mz - 5.5, mz + 4);
       this.box(6.7, 0.18, 5.3, roofMat, mx, my + 3.4, mz, false);
       // toldo listrado
       const awnC = document.createElement("canvas"); awnC.width = 128; awnC.height = 32;
@@ -746,7 +755,10 @@ export class QuintalGame {
     }
 
     /* --- mocados (pontos de plantio no chão) --- */
-    for (const s of SPOTS) this.addGroundMarker(s.x, s.z, s.y, 0x3ddc84, 1.5);
+    for (const s of SPOTS) {
+      this.addGroundMarker(s.x, s.z, s.y, 0x3ddc84, 1.5);
+      this.addFlatCircle(s.x, s.z, 2.4);
+    }
 
     /* --- postes de luz na rua --- */
     const glowC = document.createElement("canvas"); glowC.width = glowC.height = 64;
@@ -830,6 +842,9 @@ export class QuintalGame {
       this.birds.push({ g, wingL: wl, wingR: wr, a: (i / 4) * Math.PI * 2, r: 24 + i * 6, h: 24 + i * 3.5, sp: 0.25 + i * 0.06 });
     }
 
+    // terreno orgânico por último (usa as zonas planas registradas acima)
+    this.buildTerrain();
+
     // redesenha placas quando a fonte display carregar
     if (document.fonts?.ready) {
       void document.fonts.ready.then(() => {
@@ -837,6 +852,45 @@ export class QuintalGame {
         this.signRedraws.forEach((r) => r());
       });
     }
+  }
+
+  /* ---------------- terreno orgânico (malha) ---------------- */
+
+  private buildTerrain() {
+    const SIZE = 132, SEG = 148;
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const colors = new Float32Array(pos.count * 3);
+    const cLow = new THREE.Color("#cfa06e");  // areia/terra clara (baixada)
+    const cMid = new THREE.Color("#b18154");  // terra média
+    const cSteep = new THREE.Color("#7c6046"); // encosta íngreme / rocha
+    const cGrass = new THREE.Color("#8fa75c"); // vegetação rala
+    const tmp = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      const h = this.terrainH(x, z);
+      pos.setY(i, h);
+      const hx = this.terrainH(x + 0.7, z) - h;
+      const hz = this.terrainH(x, z + 0.7) - h;
+      const slope = Math.hypot(hx, hz) / 0.7;
+      tmp.copy(cLow).lerp(cMid, THREE.MathUtils.smoothstep(h, 0, 12));
+      tmp.lerp(cSteep, THREE.MathUtils.smoothstep(slope, 0.28, 0.95) * 0.85);
+      const g = THREE.MathUtils.smoothstep(this.n2(x * 1.9, z * 1.9), 0.45, 1.3);
+      tmp.lerp(cGrass, g * 0.3 * (1 - THREE.MathUtils.smoothstep(slope, 0.2, 0.6)));
+      const v = 0.93 + 0.14 * Math.abs(this.n2(x * 3.7, z * 3.1));
+      colors[i * 3] = tmp.r * v; colors[i * 3 + 1] = tmp.g * v; colors[i * 3 + 2] = tmp.b * v;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    // base de terra sob a malha (esconde a parte de baixo da colina)
+    const base = new THREE.Mesh(new THREE.BoxGeometry(175, 9, 175), new THREE.MeshLambertMaterial({ color: 0x57452f }));
+    base.position.set(0, -6.2, 0);
+    base.receiveShadow = true;
+    this.scene.add(base);
   }
 
   private addGroundMarker(x: number, z: number, y: number, color: number, radius = 1.1) {
@@ -1273,6 +1327,70 @@ export class QuintalGame {
     }
   }
 
+  /* ---------------- terreno orgânico (colina suave) ---------------- */
+
+  private addFlatRect(x0: number, x1: number, z0: number, z1: number) {
+    this.flatRects.push({ x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1) });
+  }
+  private addFlatCircle(x: number, z: number, r: number) { this.flatCircles.push({ x, z, r }); }
+
+  // ruído suave (soma de senos) — ondulações orgânicas da encosta
+  private n2(x: number, z: number): number {
+    return (
+      Math.sin(x * 0.31 + 1.7) * Math.sin(z * 0.27 + 0.5) +
+      0.5 * Math.sin(x * 0.83 - 2.1) * Math.sin(z * 0.91 + 3.4) +
+      0.25 * Math.sin(x * 1.7 + 4.2) * Math.sin(z * 1.9 - 1.3)
+    );
+  }
+
+  // 0 perto de áreas construídas (plano), 1 longe (ruído cheio)
+  private flattenMask(x: number, z: number): number {
+    let d = 1e9;
+    for (const r of this.flatRects) {
+      const dx = Math.max(r.x0 - x, 0, x - r.x1);
+      const dz = Math.max(r.z0 - z, 0, z - r.z1);
+      const dd = Math.hypot(dx, dz);
+      if (dd < d) d = dd;
+      if (d === 0) return 0;
+    }
+    for (const c of this.flatCircles) {
+      const dd = Math.max(0, Math.hypot(x - c.x, z - c.z) - c.r);
+      if (dd < d) d = dd;
+      if (d === 0) return 0;
+    }
+    return THREE.MathUtils.smoothstep(d, 0, 2.4);
+  }
+
+  // altura da colina: patamares ligados por rampas suaves + ondulação orgânica
+  private terrainH(x: number, z: number): number {
+    let y = BANDS[0].y;
+    for (let i = 0; i < BANDS.length - 1; i++) {
+      const zb = BANDS[i].z0, yHigh = BANDS[i + 1].y;
+      if (z < zb - RAMP_W) y = yHigh;
+      else if (z < zb + RAMP_W) {
+        const t = (zb + RAMP_W - z) / (2 * RAMP_W);
+        y += (yHigh - y) * THREE.MathUtils.smoothstep(t, 0, 1);
+        break;
+      }
+    }
+    const edge = Math.max(Math.max(0, Math.abs(x) - 58) / 4, Math.max(0, Math.abs(z) - 58) / 4);
+    if (edge > 0) y -= edge * edge * 5;
+    y += this.n2(x, z) * 0.16 * this.flattenMask(x, z);
+    return y;
+  }
+
+  // chão combinado (terreno + superfícies planas) que sustenta o jogador
+  private groundAt(x: number, z: number, y: number, tol: number): number {
+    const t = this.terrainH(x, z);
+    const best = t <= y + tol ? t : -Infinity;
+    return Math.max(best, this.sampleGround(x, z, y, tol));
+  }
+
+  // rampa suave demais? (bloqueia paredões íngremes)
+  private canWalk(x: number, z: number): boolean {
+    return this.terrainH(x, z) <= this.pPos.y + MAX_CLIMB;
+  }
+
   /* ---------------- física do jogador ---------------- */
 
   private sampleGround(x: number, z: number, y: number, tol: number): number {
@@ -1310,26 +1428,34 @@ export class QuintalGame {
     this.vel.x = damp(this.vel.x, tvx, 13, dt);
     this.vel.z = damp(this.vel.z, tvz, 13, dt);
 
-    // --- gravidade + chão ---
-    const groundTop = this.sampleGround(this.pPos.x, this.pPos.z, this.pPos.y, STEP_TOL);
+    // --- movimento horizontal com sliding + limite de rampa (eixo por eixo) ---
+    const nx = this.pPos.x + this.vel.x * dt;
+    if (!this.collides(nx, this.pPos.z, this.pPos.y) && this.canWalk(nx, this.pPos.z)) this.pPos.x = nx;
+    else this.vel.x = 0;
+    const nz = this.pPos.z + this.vel.z * dt;
+    if (!this.collides(this.pPos.x, nz, this.pPos.y) && this.canWalk(this.pPos.x, nz)) this.pPos.z = nz;
+    else this.vel.z = 0;
+
+    this.pPos.x = clamp(this.pPos.x, -59, 59);
+    this.pPos.z = clamp(this.pPos.z, -59, 59);
+
+    // --- gravidade + chão (terreno orgânico + superfícies planas) ---
+    const groundTop = this.groundAt(this.pPos.x, this.pPos.z, this.pPos.y, STEP_TOL);
     const hadVel = this.vel.y;
     this.vel.y -= GRAV * dt;
     this.vel.y = Math.max(this.vel.y, -32);
     this.pPos.y += this.vel.y * dt;
 
+    const wasGrounded = this.grounded;
     if (this.vel.y <= 0 && groundTop !== -Infinity && this.pPos.y <= groundTop) {
       this.pPos.y = groundTop;
       this.vel.y = 0;
-      if (!this.grounded && hadVel < -9) this.sfx.land();
+      if (!wasGrounded && hadVel < -9) this.sfx.land();
       this.grounded = true;
       this.coyote = 0.12;
-    } else if (this.grounded && groundTop !== -Infinity && Math.abs(this.pPos.y - groundTop) < 0.05) {
-      this.pPos.y = groundTop;
-      this.coyote = 0.12;
     } else {
-      if (this.grounded) this.coyote -= dt;
-      else this.coyote -= dt;
       this.grounded = false;
+      this.coyote -= dt;
     }
 
     // --- pulo com buffer (instantâneo) ---
@@ -1344,17 +1470,6 @@ export class QuintalGame {
         this.particles.burst(new THREE.Vector3(this.pPos.x, this.pPos.y + 0.1, this.pPos.z), 0xd8cfae, 8, 1.6, 1.2);
       }
     }
-
-    // --- movimento horizontal com sliding (eixo por eixo) ---
-    const nx = this.pPos.x + this.vel.x * dt;
-    if (!this.collides(nx, this.pPos.z, this.pPos.y)) this.pPos.x = nx;
-    else this.vel.x = 0;
-    const nz = this.pPos.z + this.vel.z * dt;
-    if (!this.collides(this.pPos.x, nz, this.pPos.y)) this.pPos.z = nz;
-    else this.vel.z = 0;
-
-    this.pPos.x = clamp(this.pPos.x, -59, 59);
-    this.pPos.z = clamp(this.pPos.z, -59, 59);
 
     // caiu do morro -> respawn
     if (this.pPos.y < -10) {
@@ -1394,7 +1509,7 @@ export class QuintalGame {
       target.y + Math.sin(this.camPitch) * CAM_DIST + 0.4,
       target.z + Math.cos(this.camYaw) * cp * CAM_DIST
     );
-    const floorY = this.sampleGround(desired.x, desired.z, 500, 0);
+    const floorY = this.groundAt(desired.x, desired.z, 500, 0);
     if (floorY !== -Infinity) desired.y = Math.max(desired.y, floorY + 0.5);
     this.camSmooth.lerp(desired, 1 - Math.exp(-14 * dt));
     this.camera.position.copy(this.camSmooth);
