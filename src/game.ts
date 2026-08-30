@@ -183,7 +183,7 @@ const STAIRS = [
   { band: 1, xs: [-40, 8] },
   { band: 2, xs: [30, -14] },
   { band: 3, xs: [-34, 16] },
-  { band: 4, xs: [24, -26] },
+  { band: 4, xs: [14, -26] },
   { band: 5, xs: [-8, 40] },
 ];
 
@@ -293,6 +293,13 @@ export class QuintalGame {
   // zonas "achatadas" do terreno orgânico (casas, rua, escadas, pontos)
   private flatRects: { x0: number; x1: number; z0: number; z1: number }[] = [];
   private flatCircles: { x: number; z: number; r: number }[] = [];
+
+  // posições REAIS das escadarias (ancoradas nas casas) — preenchido no buildWorld
+  private stairActual: { band: number; x: number }[] = [];
+
+  // raycaster descendente (Agente 2) contra o proxy de baixa resolução do terreno
+  private groundRay = new THREE.Raycaster();
+  private terrainProxy: THREE.Mesh | null = null;
 
   // jogador
   private player = new THREE.Group();
@@ -794,42 +801,11 @@ export class QuintalGame {
     pushGeo(concreteGeos, 120, 0.16, 0.34, 0, BANDS[0].y, 37.35);
     pushGeo(concreteGeos, 120, 0.16, 0.34, 0, BANDS[0].y, 46.65);
 
-    /* --- escadarias (estrutura vazada: degraus flutuantes + corrimão fino) --- */
+    /* escadarias são construídas DEPOIS das casas (Agente 1):
+       cada uma nasce colada na parede lateral externa de uma casa-âncora */
     const N_STEPS = 10, RISE = 0.2, TREAD = 0.46, STAIR_W = 2.3;
-    for (const st of STAIRS) {
-      for (const gx of st.xs) {
-        const yLow = BANDS[st.band].y;
-        const boundary = BANDS[st.band].z0;
-        const run = N_STEPS * TREAD;
-        const yHigh = yLow + N_STEPS * RISE;
-        for (let k = 1; k <= N_STEPS; k++) {
-          const zc = boundary + run / 2 - (k - 1) * TREAD - TREAD / 2;
-          const top = yLow + k * RISE;
-          // degrau flutuante (lâmina fina, sem bloco maciço embaixo)
-          pushGeo(k % 2 ? concreteGeos : darkGeos, STAIR_W, 0.09, TREAD, gx, top - 0.09, zc);
-          // espelho curto na borda frontal para dar leitura de degrau
-          pushGeo(darkGeos, STAIR_W, RISE, 0.05, gx, top - RISE, zc - TREAD / 2 + 0.025);
-          // faixa pintada na borda (azulejo colorido de favela)
-          pushGeo(paintGeos, STAIR_W - 0.12, 0.06, 0.09, gx, top - 0.06, zc - TREAD / 2 + 0.02, PAINT[(k + st.band) % PAINT.length]);
-          this.addSurface({ minX: gx - STAIR_W / 2, maxX: gx + STAIR_W / 2, minZ: zc - TREAD / 2, maxZ: zc + TREAD / 2, top });
-        }
-        // corrimão fino inclinado + postes finos (sem parede maciça)
-        const zBot = boundary + run / 2 + 0.2, zTop = boundary - run / 2 - 0.2;
-        for (const side of [-1, 1]) {
-          const wx = gx + side * (STAIR_W / 2 + 0.07);
-          metalGeos.push(tubeGeo(new THREE.Vector3(wx, yLow + 0.8, zBot), new THREE.Vector3(wx, yHigh + 0.8, zTop), 0.035));
-          for (let p = 0; p <= 2; p++) {
-            const t = p / 2;
-            const pz = zBot + (zTop - zBot) * t;
-            const py = yLow + (yHigh - yLow) * t;
-            metalGeos.push(tubeGeo(new THREE.Vector3(wx, py, pz), new THREE.Vector3(wx, py + 0.8, pz), 0.03));
-          }
-        }
-      }
-    }
 
     /* --- casas procedurais --- */
-    const stairXs = STAIRS.flatMap((s) => s.xs);
     const reserved = [
       { x: -10, z: 47, r: 7 },   // mercadinho
       { x: 26, z: -27, r: 7 },   // receptador
@@ -841,7 +817,7 @@ export class QuintalGame {
       const b = BANDS[bi];
       const midZ = (b.z0 + b.z1) / 2;
       // fileiras coladas nas bordas do patamar -> vielas estreitas (~1,4 m) entre elas
-      const rows = bi === 0 ? [49.9, 55.7] : [b.z0 + 2.6, midZ, b.z1 - 2.6];
+      const rows = bi === 0 ? [35.2, 49.9, 55.7] : [b.z0 + 2.6, midZ, b.z1 - 2.6];
       const midCount = bi === 0 ? 4 : 6;
       const plots: { x: number; z: number }[] = [];
       for (const rz of rows) for (let px = -56; px <= 56; px += 4.9) plots.push({ x: px + (rng() - 0.5) * 1.1, z: rz + (rng() - 0.5) * 1.0 });
@@ -850,7 +826,12 @@ export class QuintalGame {
         plots.push({ x: -52 + rng() * 104, z: rows[Math.floor(rng() * rows.length)] + (rng() - 0.5) * 1.0 });
       }
       for (const p of plots) {
-        if (stairXs.some((sx) => Math.abs(p.x - sx) < 3.6)) continue;
+        // caixa de escada: bolso livre junto à borda do patamar p/ a escada ancorada
+        const inStairPocket = STAIRS.some(
+          (st) => st.band === bi && p.z > BANDS[bi].z0 + 0.6 && p.z < BANDS[bi].z0 + 8.4 &&
+            st.xs.some((sx) => p.x > sx - 3.3 && p.x < sx + 5.0)
+        );
+        if (inStairPocket) continue;
         if (reserved.some((r) => Math.abs(p.x - r.x) < r.r && Math.abs(p.z - r.z) < r.r)) continue;
         if (SPOTS.some((s) => Math.abs(p.x - s.x) < 4 && Math.abs(p.z - s.z) < 4)) continue;
         if (rng() < 0.07) continue; // beco vazio (raríssimo — o morro é cheio)
@@ -908,6 +889,68 @@ export class QuintalGame {
       }
     }
 
+    /* ================= AGENTE 1 — ESCADARIAS ANCORADAS =================
+       Cada escada nasce COLADA na parede lateral externa de uma casa-âncora
+       da fileira junto à borda do patamar. A base toca o chão do patamar
+       inferior (zona plana garantida) e o topo termina EXATAMENTE nivelado
+       com o piso do patamar superior, sem flutuar nem bloquear a viela. */
+    for (const st of STAIRS) {
+      for (const sx of st.xs) {
+        const b = BANDS[st.band];
+        const boundary = b.z0;
+        const yLow = b.y;
+        const yHigh = yLow + N_STEPS * RISE; // == BANDS[st.band + 1].y (nivelado)
+        const run = N_STEPS * TREAD;
+        // procura a casa-âncora: fileira da borda, parede lateral MAIS PRÓXIMA do
+        // eixo da escada sem invadir a faixa de degraus (wallX <= sx - 0.4)
+        let anchor: { x: number; z: number; w: number } | null = null;
+        let bestX = -1e9;
+        for (const hs of placed) {
+          if (Math.abs(hs.y - yLow) > 0.01) continue;
+          if (hs.z < boundary + 0.6 || hs.z > boundary + 7.6) continue;
+          const wallX = hs.x + hs.w / 2;
+          if (wallX <= sx - 0.4 && wallX > bestX) { bestX = wallX; anchor = hs; }
+        }
+        const wallX = anchor ? bestX : sx - STAIR_W / 2 - 0.3;
+        const x0 = wallX + 0.03;          // degraus começam rente à parede (colados)
+        const gxc = x0 + STAIR_W / 2;
+        this.stairActual.push({ band: st.band, x: gxc });
+        // terreno 100% plano sob a escada (base assentada, topo nivelado)
+        this.addFlatRect(x0 - 0.5, x0 + STAIR_W + 0.9, boundary - run / 2 - 0.8, boundary + run / 2 + 0.8);
+        for (let k = 1; k <= N_STEPS; k++) {
+          const zc = boundary + run / 2 - (k - 1) * TREAD - TREAD / 2;
+          const top = yLow + k * RISE;
+          // degrau rústico de cimento (lâmina fina apoiada na encosta)
+          pushGeo(k % 2 ? concreteGeos : darkGeos, STAIR_W, 0.09, TREAD, gxc, top - 0.09, zc);
+          // espelho curto na borda frontal para dar leitura de degrau
+          pushGeo(darkGeos, STAIR_W, RISE, 0.05, gxc, top - RISE, zc - TREAD / 2 + 0.025);
+          // faixa pintada na borda (azulejo colorido de favela)
+          pushGeo(paintGeos, STAIR_W - 0.12, 0.06, 0.09, gxc, top - 0.06, zc - TREAD / 2 + 0.02, PAINT[(k + st.band) % PAINT.length]);
+          // superfície andável do degrau (superficiesAndaveis)
+          this.addSurface({ minX: x0, maxX: x0 + STAIR_W, minZ: zc - TREAD / 2, maxZ: zc + TREAD / 2, top });
+        }
+        // patamar de chegada no topo, nivelado com o piso do patamar superior
+        const landZ = boundary - run / 2 - 0.35;
+        pushGeo(concreteGeos, STAIR_W + 0.3, 0.08, 0.8, gxc, yHigh - 0.08, landZ);
+        this.addSurface({ minX: x0 - 0.15, maxX: x0 + STAIR_W + 0.15, minZ: landZ - 0.4, maxZ: landZ + 0.4, top: yHigh });
+        // soleira na base ligando a viela ao primeiro degrau
+        pushGeo(concreteGeos, STAIR_W + 0.3, 0.07, 0.6, gxc, yLow, boundary + run / 2 + 0.3);
+        this.addSurface({ minX: x0 - 0.15, maxX: x0 + STAIR_W + 0.15, minZ: boundary + run / 2, maxZ: boundary + run / 2 + 0.6, top: yLow + 0.07 });
+        // corrimão fino só no lado aberto (o lado da parede usa a própria casa)
+        const zBot = boundary + run / 2 + 0.35, zTop = boundary - run / 2 - 0.55;
+        const wx = x0 + STAIR_W + 0.07;
+        metalGeos.push(tubeGeo(new THREE.Vector3(wx, yLow + 0.8, zBot), new THREE.Vector3(wx, yHigh + 0.8, zTop), 0.035));
+        for (let p = 0; p <= 2; p++) {
+          const t = p / 2;
+          const pz = zBot + (zTop - zBot) * t;
+          const py = yLow + (yHigh - yLow) * t;
+          metalGeos.push(tubeGeo(new THREE.Vector3(wx, py, pz), new THREE.Vector3(wx, py + 0.8, pz), 0.03));
+        }
+        // guarda-corpo no patamar de chegada (não cair de costas da laje superior)
+        metalGeos.push(tubeGeo(new THREE.Vector3(x0 - 0.1, yHigh + 0.8, landZ - 0.38), new THREE.Vector3(wx, yHigh + 0.8, landZ - 0.38), 0.03));
+      }
+    }
+
     /* --- pontes/passadorias ligando casas por cima das vielas --- */
     for (let i = 0; i < placed.length - 1; i++) {
       if (rng() > 0.1) continue;
@@ -955,7 +998,8 @@ export class QuintalGame {
       }
       for (const [ex, ez, ew, ed] of edges) {
         pushGeo(roofGeos, ew, ph, ed, ex, L.top, ez);
-        this.addCollider({ minX: ex - ew / 2, maxX: ex + ew / 2, minZ: ez - ed / 2, maxZ: ez + ed / 2, top: L.top + ph, bottom: L.top - 0.1 });
+        // mureta da laje = obstáculo sólido (Agente 2: evita quedas)
+        this.registrarObstaculo({ minX: ex - ew / 2, maxX: ex + ew / 2, minZ: ez - ed / 2, maxZ: ez + ed / 2, top: L.top + ph, bottom: L.top - 0.1 });
       }
       // caixa d'água em metade delas
       if (lajeEscada % 2 === 0) {
@@ -1292,8 +1336,8 @@ export class QuintalGame {
       let vz = vielaZ(band);
       const pts: { x: number; z: number; y: number }[] = [{ x, z: vz, y: BANDS[band].y }];
       for (let c = 0; c < climbs; c++) {
-        const stair = STAIRS[band];
-        const sx = stair.xs[Math.floor(rng() * stair.xs.length)];
+        const escadas = this.stairActual.filter((s) => s.band === band);
+        const sx = escadas.length ? escadas[Math.floor(rng() * escadas.length)].x : 0;
         pts.push({ x: sx, z: vz, y: BANDS[band].y });
         pts.push({ x: sx, z: BANDS[band].z0 + 2.2, y: BANDS[band].y });
         pts.push({ x: sx, z: BANDS[band].z0 - 2.4, y: BANDS[band + 1].y });
@@ -1363,7 +1407,7 @@ export class QuintalGame {
     const nearHouse = (xx: number, zz: number) =>
       placed.some((hs) => Math.abs(xx - hs.x) < hs.w / 2 + 0.9 && Math.abs(zz - hs.z) < hs.d / 2 + 0.9);
     const inRoad = (zz: number) => Math.abs(zz - 42) < 6.2;
-    const nearStairX = (xx: number) => stairXs.some((sx) => Math.abs(xx - sx) < 2.6);
+    const nearStairX = (xx: number) => this.stairActual.some((s) => Math.abs(xx - s.x) < 2.6);
 
     // poças d'água (na rua e nas rampas)
     const puddleGeos: THREE.BufferGeometry[] = [];
@@ -1476,6 +1520,15 @@ export class QuintalGame {
     const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: this.texGround() }));
     mesh.receiveShadow = true;
     this.scene.add(mesh);
+    // proxy de baixa resolução para o RAYCASTER descendente (Agente 2) —
+    // detecção vertical precisa sem custar os 88 mil triângulos da malha fina
+    const pGeo = new THREE.PlaneGeometry(132, 132, 64, 64);
+    pGeo.rotateX(-Math.PI / 2);
+    const pPos = pGeo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pPos.count; i++) pPos.setY(i, this.terrainH(pPos.getX(i), pPos.getZ(i)));
+    pGeo.computeVertexNormals();
+    this.terrainProxy = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ visible: false }));
+    this.scene.add(this.terrainProxy);
     // base de terra sob a malha (esconde a parte de baixo da colina)
     const base = new THREE.Mesh(new THREE.BoxGeometry(175, 9, 175), new THREE.MeshLambertMaterial({ color: 0x57452f }));
     base.position.set(0, -7, 0);
@@ -2030,10 +2083,28 @@ export class QuintalGame {
     return y;
   }
 
-  // chão combinado (terreno + superfícies planas) que sustenta o jogador
+  /* ============ AGENTE 2 — MOTOR DE FÍSICA VERTICAL ============
+     superficiesAndaveis = lajes, telhados e degraus (this.surfaces)
+     registrarObstaculo  = muretas, paredes e obstáculos sólidos (addCollider)
+     A detecção de chão usa um THREE.Raycaster descendente contra o proxy do
+     terreno; a física horizontal (sliding em X/Z) segue intacta no updatePlayer. */
+  private get superficiesAndaveis() { return this.surfaces; }
+  private registrarObstaculo(c: Collider) { this.addCollider(c); }
+
+  private rayGround(x: number, z: number): number {
+    if (!this.terrainProxy) return -Infinity;
+    this.groundRay.set(this.rayOrigin.set(x, 60, z), this.rayDown);
+    this.groundRay.far = 200;
+    const hits = this.groundRay.intersectObject(this.terrainProxy, false);
+    return hits.length ? hits[0].point.y : -Infinity;
+  }
+  private rayOrigin = new THREE.Vector3();
+  private rayDown = new THREE.Vector3(0, -1, 0);
+
+  // chão combinado (raycast do terreno + superfícies andáveis) que sustenta o jogador
   private groundAt(x: number, z: number, y: number, tol: number): number {
-    const t = this.terrainH(x, z);
-    const best = t <= y + tol ? t : -Infinity;
+    const t = this.rayGround(x, z);
+    const best = t !== -Infinity && t <= y + tol ? t : -Infinity;
     return Math.max(best, this.sampleGround(x, z, y, tol));
   }
 
@@ -2313,10 +2384,10 @@ export class QuintalGame {
       ctx.strokeStyle = "rgba(255,255,255,0.08)";
       ctx.strokeRect(mx(-60), mz(b.z0), 124 * scale, (b.z1 - b.z0) * scale);
     }
-    // escadas
+    // escadas (posições reais, ancoradas nas casas)
     ctx.fillStyle = "#8b8fa3";
-    for (const st of STAIRS) for (const gx of st.xs) {
-      ctx.fillRect(mx(gx - 1.2), mz(BANDS[st.band].z0 - 2.4), 2.4 * scale, 4.8 * scale);
+    for (const st of this.stairActual) {
+      ctx.fillRect(mx(st.x - 1.2), mz(BANDS[st.band].z0 - 2.4), 2.4 * scale, 4.8 * scale);
     }
     // mar (borda inferior)
     ctx.fillStyle = "#1d5a77";

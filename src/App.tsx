@@ -395,10 +395,11 @@ export default function App() {
                 )}
                 <button
                   onPointerDown={(e) => { e.preventDefault(); g?.pressJump(); }}
-                  className="jump-btn flex h-24 w-24 items-center justify-center rounded-full text-morro-950"
+                  className="jump-btn flex h-28 w-28 flex-col items-center justify-center gap-0.5 rounded-full text-morro-950 transition-transform duration-75 active:scale-90"
                   aria-label="Pular"
                 >
                   <JumpIcon />
+                  <span className="font-display text-sm leading-none tracking-[0.22em]">PULAR</span>
                 </button>
               </div>
             </>
