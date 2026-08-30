@@ -165,28 +165,34 @@ const RAMP_W = 1.9;         // meia-largura da rampa entre patamares (morro mais
 const GROW_T1 = 16;   // broto -> vegetativa
 const GROW_T2 = 38;   // -> flora (colheita)
 
+/* 7 patamares — o morro escalonado, casa em cima de casa */
 const BANDS = [
   { z0: 34, z1: 60, y: 0 },
-  { z0: 10, z1: 34, y: 2.8 },
-  { z0: -14, z1: 10, y: 5.6 },
-  { z0: -38, z1: -14, y: 8.4 },
-  { z0: -60, z1: -38, y: 11.2 },
+  { z0: 18, z1: 34, y: 2.0 },
+  { z0: 2, z1: 18, y: 4.0 },
+  { z0: -14, z1: 2, y: 6.0 },
+  { z0: -30, z1: -14, y: 8.0 },
+  { z0: -46, z1: -30, y: 10.0 },
+  { z0: -60, z1: -46, y: 12.0 },
 ];
 
+/* escadas em zigue-zague subindo o morro (uma ou duas por patamar) */
 const STAIRS = [
   { band: 0, xs: [-22, 26] },
-  { band: 1, xs: [-38, 10] },
-  { band: 2, xs: [-14, 34] },
-  { band: 3, xs: [8, -32] },
+  { band: 1, xs: [-40, 8] },
+  { band: 2, xs: [30, -14] },
+  { band: 3, xs: [-34, 16] },
+  { band: 4, xs: [24, -26] },
+  { band: 5, xs: [-8, 40] },
 ];
 
 const SPOTS: Spot[] = [
   { x: -52, z: 20, y: BANDS[1].y },
   { x: 52, z: 26, y: BANDS[1].y },
-  { x: -50, z: -4, y: BANDS[2].y },
-  { x: 48, z: -22, y: BANDS[3].y },
-  { x: -46, z: -48, y: BANDS[4].y },
-  { x: 30, z: -52, y: BANDS[4].y },
+  { x: -50, z: -6, y: BANDS[2].y },
+  { x: 48, z: -22, y: BANDS[4].y },
+  { x: -46, z: -52, y: BANDS[6].y },
+  { x: 30, z: -52, y: BANDS[6].y },
 ];
 
 const HOUSE_COLORS = [
@@ -653,6 +659,15 @@ export class QuintalGame {
       }
       list.push(g);
     };
+    // pinta geometria avulsa com vertex colors (p/ misturar com listas coloridas no merge)
+    const paintGeo = (g: THREE.BufferGeometry, hex: string) => {
+      const c = new THREE.Color(hex);
+      const cnt = g.attributes.position.count;
+      const arr = new Float32Array(cnt * 3);
+      for (let i = 0; i < cnt; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+      g.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+      return g;
+    };
 
     /* --- terreno orgânico ---
        A encosta agora é uma colina contínua: patamares ligados por rampas
@@ -664,7 +679,7 @@ export class QuintalGame {
     this.addFlatRect(-60, 60, 37.2, 46.8);
 
     /* --- escadarias (estrutura vazada: degraus flutuantes + corrimão fino) --- */
-    const N_STEPS = 10, RISE = 0.28, TREAD = 0.46, STAIR_W = 2.3;
+    const N_STEPS = 10, RISE = 0.2, TREAD = 0.46, STAIR_W = 2.3;
     for (const st of STAIRS) {
       for (const gx of st.xs) {
         const yLow = BANDS[st.band].y;
@@ -705,20 +720,22 @@ export class QuintalGame {
     ];
     const lajeHouses: { x: number; z: number; w: number; d: number; top: number; y: number }[] = [];
 
+    const placed: { x: number; z: number; w: number; d: number; y: number; hh: number; laje: boolean }[] = [];
     for (let bi = 0; bi < BANDS.length; bi++) {
       const b = BANDS[bi];
-      const rows = [b.z0 + 4.6, b.z1 - 4.6];
-      const midCount = bi === 0 ? 3 : 4;
+      const midZ = (b.z0 + b.z1) / 2;
+      const rows = [b.z0 + 4.2, midZ, b.z1 - 4.2]; // 3 fileiras = vielas dos dois lados
+      const midCount = bi === 0 ? 3 : 5;
       const plots: { x: number; z: number }[] = [];
-      for (const rz of rows) for (let px = -54; px <= 54; px += 7.4) plots.push({ x: px + (rng() - 0.5) * 1.6, z: rz });
+      for (const rz of rows) for (let px = -56; px <= 56; px += 5.9) plots.push({ x: px + (rng() - 0.5) * 1.7, z: rz + (rng() - 0.5) * 1.4 });
       for (let m = 0; m < midCount; m++) {
-        plots.push({ x: -48 + rng() * 96, z: b.z0 + 9 + rng() * Math.max(2, b.z1 - b.z0 - 18) });
+        plots.push({ x: -50 + rng() * 100, z: b.z0 + 6.5 + rng() * Math.max(2, b.z1 - b.z0 - 13) });
       }
       for (const p of plots) {
         if (stairXs.some((sx) => Math.abs(p.x - sx) < 3.6)) continue;
         if (reserved.some((r) => Math.abs(p.x - r.x) < r.r && Math.abs(p.z - r.z) < r.r)) continue;
         if (SPOTS.some((s) => Math.abs(p.x - s.x) < 4 && Math.abs(p.z - s.z) < 4)) continue;
-        if (rng() < 0.16) continue; // beco vazio
+        if (rng() < 0.07) continue; // beco vazio (raríssimo — o morro é cheio)
         const w = 4.2 + rng() * 1.8;
         const d = 4.2 + rng() * 1.8;
         const h = 2.9 + rng() * 1.9;
@@ -744,8 +761,53 @@ export class QuintalGame {
         if (rng() < 0.5) anchors.push(new THREE.Vector3(p.x + (rng() < 0.5 ? -w / 2 : w / 2), b.y + hh + 0.25, p.z + (rng() - 0.5) * d));
         if (!isLaje && !isBrick && rng() < 0.16) signHouses.push({ x: p.x, z: p.z, w, d, y: b.y });
         else if (isBrick && rng() < 0.12) muralHouses.push({ x: p.x, z: p.z, w, d, y: b.y, hh });
-        if (isLaje) {
-          lajeHouses.push({ x: p.x, z: p.z, w, d, top: b.y + hh, y: b.y });
+        placed.push({ x: p.x, z: p.z, w, d, y: b.y, hh, laje: isLaje });
+        // --- casa em cima de casa: sobrado empilhado, às vezes em balanço com pilotis ---
+        if (!isLaje && rng() < 0.42) {
+          const w2 = w * (0.62 + rng() * 0.2), d2 = d * (0.66 + rng() * 0.2);
+          const h2 = 2.5 + rng() * 1.1;
+          const ox = (rng() - 0.5) * (w - w2) * 0.9;
+          const oz = (rng() - 0.5) * (d - d2) * 0.9;
+          const cant = rng() < 0.5 ? (rng() < 0.5 ? -1 : 1) * (0.5 + rng() * 0.55) : 0; // balanço pra cima do beco
+          const isBrick2 = rng() < 0.4;
+          const col2 = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
+          if (isBrick2) pushGeo(brickGeos, w2, h2, d2, p.x + ox + cant, b.y + hh, p.z + oz);
+          else pushGeo(houseGeos, w2, h2, d2, p.x + ox + cant, b.y + hh, p.z + oz, col2);
+          pushGeo(roofGeos, w2 + 0.24, 0.14, d2 + 0.24, p.x + ox + cant, b.y + hh + h2, p.z + oz);
+          pushGeo(frameGeos, 0.07, 0.62, 0.62, p.x + ox + cant + w2 / 2 - 0.01, b.y + hh + 1.1, p.z + oz, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
+          if (rng() < 0.5) anchors.push(new THREE.Vector3(p.x + ox + cant, b.y + hh + h2 + 0.2, p.z + oz));
+          if (cant !== 0) {
+            // pilotis sob o balanço
+            const px2 = p.x + ox + cant + (cant > 0 ? w2 / 2 - 0.25 : -w2 / 2 + 0.25);
+            for (const pz2 of [p.z + oz - d2 / 2 + 0.3, p.z + oz + d2 / 2 - 0.3]) {
+              const ph = hh; // coluna do chão até a laje do sobrado
+              const pil = new THREE.CylinderGeometry(0.07, 0.07, ph, 6);
+              pil.translate(px2, b.y + ph / 2, pz2);
+              frameGeos.push(paintGeo(pil, "#9b938a"));
+            }
+          }
+        }
+      }
+    }
+
+    /* --- pontes/passadorias ligando casas por cima das vielas --- */
+    for (let i = 0; i < placed.length - 1; i++) {
+      if (rng() > 0.1) continue;
+      const a = placed[i];
+      for (let j = i + 1; j < placed.length; j++) {
+        const b2 = placed[j];
+        if (Math.abs(a.y - b2.y) > 0.5) continue;
+        const dz = Math.abs(a.z - b2.z);
+        const dx = b2.x - a.x;
+        if (dz < 2.4 && dx > a.w / 2 + 0.7 && dx < a.w / 2 + 3.6) {
+          const gap = dx - a.w / 2 - b2.w / 2;
+          if (gap < 0.6 || gap > 3.4) break;
+          const cx = a.x + a.w / 2 + gap / 2, cz = (a.z + b2.z) / 2;
+          const py = a.y + Math.min(a.hh, b2.hh) - 0.35;
+          pushGeo(concreteGeos, gap + 0.5, 0.12, 0.85, cx, py, cz);
+          pushGeo(frameGeos, gap + 0.5, 0.05, 0.05, cx, py + 0.55, cz - 0.4, "#5a5168");
+          pushGeo(frameGeos, gap + 0.5, 0.05, 0.05, cx, py + 0.55, cz + 0.4, "#5a5168");
+          break;
         }
       }
     }
@@ -755,7 +817,7 @@ export class QuintalGame {
     for (const L of lajeHouses) {
       this.addSurface({ minX: L.x - L.w / 2 + 0.1, maxX: L.x + L.w / 2 - 0.1, minZ: L.z - L.d / 2 + 0.1, maxZ: L.z + L.d / 2 - 0.1, top: L.top, roof: true });
       const ph = 0.46;
-      const temEscada = lajeEscada < 8;
+      const temEscada = lajeEscada < 12;
       const gxL = L.x + L.w / 2 - 0.8; // posição da escada externa
       const edges: [number, number, number, number][] = [
         [L.x, L.z - L.d / 2 + 0.08, L.w, 0.16],
@@ -794,7 +856,7 @@ export class QuintalGame {
       for (let rb = 0; rb < 4; rb++)
         pushGeo(frameGeos, 0.022, 0.5 + (rb % 3) * 0.25, 0.022, L.x + L.w / 3 + (rb % 2) * 0.16, L.top + 0.16, L.z - L.d / 3 + Math.floor(rb / 2) * 0.16, "#7a4a2e");
       // escada externa em algumas lajes
-      if (lajeEscada < 8) {
+      if (lajeEscada < 12) {
         const steps = Math.round((L.top - L.y) / 0.27);
         const sz = L.z + L.d / 2 - 0.18;
         for (let k = 1; k <= steps; k++) {
@@ -868,10 +930,11 @@ export class QuintalGame {
 
     /* --- esconderijo do receptador --- */
     {
-      const rx = 26, rz = -27, ry = BANDS[3].y;
+      const rx = 26, rz = -27, ry = BANDS[4].y;
       const mat = new THREE.MeshLambertMaterial({ color: 0x3a3547, map: wallTex.map, emissiveMap: wallTex.emissiveMap, emissive: 0x8f5bd0, emissiveIntensity: 0.3 });
       this.box(5.6, 3.2, 4.6, mat, rx, ry, rz);
       this.addCollider({ minX: rx - 2.8, maxX: rx + 2.8, minZ: rz - 2.3, maxZ: rz + 2.3, top: ry + 3.2, bottom: ry - 0.2 });
+      this.addFlatRect(rx - 4.6, rx + 4.6, rz - 4.6, rz + 3.6);
       this.box(5.9, 0.18, 4.9, roofMat, rx, ry + 3.2, rz, false);
       const s = this.makeSign("RECEPTADOR", "#1a0f22", "#ff4fd8");
       this.signRedraws.push(s.redraw);
@@ -1031,13 +1094,25 @@ export class QuintalGame {
       emissive: 0xffc766, emissiveIntensity: 0.7,
     }));
 
-    /* --- varais com roupas --- */
+    /* --- varais estendidos de casa pra casa, por cima das vielas --- */
     const clothCols = [0xe85d75, 0xf4d35e, 0x4d9de0, 0xf2f2f2, 0x7bc950, 0xe15b9b];
-    for (let v = 0; v < 6; v++) {
-      const b = BANDS[Math.floor(rng() * BANDS.length)];
-      const x1 = -40 + rng() * 80, z1 = b.z0 + 3 + rng() * (b.z1 - b.z0 - 6);
-      const x2 = x1 + 5 + rng() * 3, z2 = z1 + (rng() - 0.5) * 2;
-      const y = b.y + 2.6;
+    let varais = 0;
+    for (let v = 0; v < placed.length && varais < 10; v++) {
+      if (rng() > 0.12) continue;
+      const a0 = placed[v];
+      let nb: (typeof placed)[number] | null = null;
+      for (let j = 0; j < placed.length; j++) {
+        if (j === v) continue;
+        const b2 = placed[j];
+        if (Math.abs(b2.y - a0.y) > 0.5) continue;
+        const ddx = b2.x - a0.x;
+        if (Math.abs(b2.z - a0.z) < 2.6 && ddx > a0.w / 2 + 0.6 && ddx < a0.w / 2 + 4.4) { nb = b2; break; }
+      }
+      if (!nb) continue;
+      varais++;
+      const x1 = a0.x + a0.w / 2, z1 = a0.z;
+      const x2 = nb.x - nb.w / 2, z2 = nb.z;
+      const y = a0.y + 2.45;
       const pts: THREE.Vector3[] = [];
       for (let i = 0; i <= 10; i++) {
         const t = i / 10;
@@ -1066,8 +1141,8 @@ export class QuintalGame {
     /* --- NPCs (moradores) --- */
     const skins = [0xc98a5b, 0x8a5a3b, 0xe0a878, 0x6e4326];
     const shirts = [0xe85d75, 0x4d9de0, 0xf4d35e, 0xf2f2f2, 0x7bc950];
-    for (let i = 0; i < 6; i++) {
-      const b = BANDS[i % 4];
+    for (let i = 0; i < 9; i++) {
+      const b = BANDS[i % 6];
       const g = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.85, 8), new THREE.MeshLambertMaterial({ color: shirts[i % shirts.length] }));
       body.position.y = 0.78; body.castShadow = true; g.add(body);
@@ -1897,7 +1972,7 @@ export class QuintalGame {
     ctx.fillRect(0, 0, S, S);
 
     // platôs (mais alto = mais claro)
-    const shades = ["#232633", "#2a2e3d", "#333849", "#3c4257", "#464d66"];
+    const shades = ["#232633", "#282c3a", "#2e3342", "#343a4b", "#3b4255", "#434b60", "#4c556c"];
     for (let i = 0; i < BANDS.length; i++) {
       const b = BANDS[i];
       ctx.fillStyle = shades[i];

@@ -115,9 +115,10 @@ function StartScreen({ onStart }: { onStart: () => void }) {
             QUINTAL<br /><span className="text-sol-400">3D</span>
           </h1>
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-laje-100/85">
-            Suba o morro, mocada o cultivo nas <strong className="text-grana-400">lajes e becos</strong>,
-            fuja dos becos sem saída e transforme <strong className="text-sol-400">{fmtBRL(PRICES.meta)}</strong> em
-            dinheiro vivo no esconderijo do receptador.
+            Um morro de <strong className="text-sol-400">casa em cima de casa</strong>: corte pelas{" "}
+            <strong className="text-sol-400">vielas apertadas</strong>, suba as escadas em zigue-zague,
+            moca o cultivo nas <strong className="text-grana-400">lajes com vista pro mar</strong> e transforme{" "}
+            <strong className="text-sol-400">{fmtBRL(PRICES.meta)}</strong> em dinheiro vivo no esconderijo do receptador.
           </p>
           <button
             onClick={onStart}
@@ -161,9 +162,10 @@ function StartScreen({ onStart }: { onStart: () => void }) {
           {Array.from({ length: 2 }).map((_, k) => (
             <span key={k} className="flex gap-8">
               <span>MERCADINHO DO ZÉ</span><span className="text-sol-400">✦</span>
+              <span>CASA EM CIMA DE CASA</span><span className="text-sol-400">✦</span>
               <span>LAJE COM VISTA PRO MAR</span><span className="text-sol-400">✦</span>
+              <span>VIELA APERTADA</span><span className="text-sol-400">✦</span>
               <span>MOCADO SEGURO</span><span className="text-sol-400">✦</span>
-              <span>ESCADA DE 10 DEGRAUS</span><span className="text-sol-400">✦</span>
               <span>RECEPTADOR PAGA BEM</span><span className="text-sol-400">✦</span>
               <span>QUINTAL 3D</span><span className="text-sol-400">✦</span>
             </span>
