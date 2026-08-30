@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   BANDS, STAIRS, SPOTS, FARM, FEIRA_POS, RECEPT_POS,
-  HOUSE_COLORS, GATE_COLS, WIN_COLS, PAINT, SIGN_DATA, mulberry32,
+  HOUSE_COLORS, GATE_COLS, WIN_COLS, PAINT, SIGN_DATA, mulberry32, clamp,
 } from "./constants";
 import * as TEX from "./textures";
 import type { Physics } from "./physics";
@@ -17,6 +17,8 @@ import type { Spot, StairActual, NpcDef } from "./types";
 
 export class WorldGenerator {
   stairActual: StairActual[] = [];
+  /** retângulos de ocupação (para validação e regras de circulação) */
+  placedRects: { x: number; z: number; w: number; d: number; y: number }[] = [];
   spots: Spot[] = SPOTS;
   private npcs: NpcDef[] = [];
   private birds: { g: THREE.Group; wingL: THREE.Object3D; wingR: THREE.Object3D; a: number; r: number; h: number; sp: number }[] = [];
@@ -135,6 +137,15 @@ export class WorldGenerator {
     sun.position.set(60, 92, 330);
     sun.scale.setScalar(90);
     scene.add(sun);
+    // nuvens esparsas (profundidade atmosférica)
+    for (let ci = 0; ci < 7; ci++) {
+      const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: this.glowTex, color: 0xfff2e0, transparent: true, opacity: 0.34, depthWrite: false,
+      }));
+      cloud.position.set(-260 + ci * 88 + (ci % 2) * 30, 62 + (ci % 3) * 16, 150 + (ci % 4) * 60);
+      cloud.scale.set(60 + (ci % 3) * 26, 16 + (ci % 2) * 8, 1);
+      scene.add(cloud);
+    }
 
     // mar da baía
     const sea = new THREE.Mesh(
@@ -190,10 +201,34 @@ export class WorldGenerator {
     }
     pushGeo(cityGeos, 5.5, 17, 5.5, -34, -0.5, 102, "#b3ac9e");
     pushGeo(cityGeos, 4.5, 21, 4.5, 18, -0.5, 108, "#9aa3ab");
+    // segunda fileira (mais longe, mais alta, mais fria — profundidade)
+    for (let cx = -95; cx <= 95; cx += 13) {
+      pushGeo(cityGeos, 5 + rng() * 4, 8 + rng() * 18, 5 + rng() * 4, cx + (rng() - 0.5) * 5, -0.5, 128 + rng() * 34, "#5e5a68");
+    }
     buildMerged(cityGeos, new THREE.MeshStandardMaterial({
       vertexColors: true, map: wallTex.map, emissiveMap: wallTex.emissiveMap,
       emissive: 0xffc766, emissiveIntensity: 0.4, roughness: 0.9,
     }));
+
+    /* ============ REGRAS DE OCUPAÇÃO DO SOLO (FASE 2) ============
+       Retângulos reservados (caixas de escada, feira, receptador) entram
+       ANTES das casas. Toda construção precisa passar no canPlace:
+       sem sobreposição + vão mínimo de circulação (GAP). */
+    const GAP = 0.9;
+    const rects = this.placedRects;
+    rects.length = 0;
+    for (const st of STAIRS) for (const sx of st.xs) {
+      rects.push({ x: sx + 0.35, z: BANDS[st.band].z0 + 0.5, w: 3.3, d: 6.6, y: BANDS[st.band].y });
+    }
+    rects.push({ x: FEIRA_POS.x, z: FEIRA_POS.z, w: 9.5, d: 7.5, y: 0 });
+    rects.push({ x: RECEPT_POS.x, z: RECEPT_POS.z, w: 11, d: 9.5, y: BANDS[4].y });
+    const canPlace = (x: number, z: number, w: number, d: number, y: number) => {
+      for (const r of rects) {
+        if (Math.abs(r.y - y) > 0.5) continue;
+        if (Math.abs(x - r.x) < (w + r.w) / 2 + GAP && Math.abs(z - r.z) < (d + r.d) / 2 + GAP) return false;
+      }
+      return true;
+    };
 
     /* ================= RUA (divisor entre Fazenda e Favela) ================= */
     const road = addBox(
@@ -205,6 +240,9 @@ export class WorldGenerator {
     physics.addFlatRect(-60, 60, 37.2, 46.8);
     pushGeo(concreteGeos, 120, 0.16, 0.34, 0, 0, 37.35);
     pushGeo(concreteGeos, 120, 0.16, 0.34, 0, 0, 46.65);
+    // calçadas contínuas (hierarquia: terreno > rua > calçada > casas)
+    pushGeo(concreteGeos, 120, 0.09, 1.5, 0, 0, 38.25);
+    pushGeo(concreteGeos, 120, 0.09, 1.3, 0, 0, 45.85);
 
     /* ================= FAZENDA (polo legal) ================= */
     physics.addFlatRect(FARM.x0 - 2, FARM.x1 + 2, FARM.z0 - 2, FARM.z1 + 6);
@@ -344,55 +382,103 @@ export class WorldGenerator {
       }
       for (const p of plots) {
         if (bi === 0 && p.z > FARM.z0 - 1.5) continue; // fazenda livre
-        const inStairPocket = STAIRS.some(
-          (st) => st.band === bi && p.z > BANDS[bi].z0 + 0.6 && p.z < BANDS[bi].z0 + 8.4 &&
-            st.xs.some((sx) => p.x > sx - 3.3 && p.x < sx + 5.0)
-        );
-        if (inStairPocket) continue;
-        if (Math.abs(p.x - RECEPT_POS.x) < 7 && Math.abs(p.z - RECEPT_POS.z) < 7) continue;
         if (SPOTS.some((s) => Math.abs(p.x - s.x) < 4 && Math.abs(p.z - s.z) < 4)) continue;
-        if (rng() < 0.07) continue;
-        const w = 4.0 + rng() * 1.6;
-        const d = 3.4 + rng() * 0.9;
+        if (rng() < 0.05) continue; // terreno baldio ocasional
+        const w = 3.4 + rng() * 1.0;
+        const d = 3.2 + rng() * 0.8;
+        // clamp p/ não invadir rua/calçada, encosta de trás nem as laterais do mapa
+        let px = clamp(p.x, -56 + w / 2, 56 - w / 2);
+        let pz = p.z;
+        if (bi === 0) pz = Math.min(pz, 36.85 - d / 2);
+        pz = clamp(pz, b.z0 + d / 2 + 0.55, b.z1 - d / 2 - 0.55);
+        // VALIDAÇÃO: sem sobreposição + vão mínimo de beco garantido
+        if (!canPlace(px, pz, w, d, b.y)) continue;
+        rects.push({ x: px, z: pz, w, d, y: b.y });
         const h = 2.9 + rng() * 1.9;
-        const isLaje = rng() < 0.34;
+        const variant = Math.floor(rng() * 5); // tipos A..E
+        const isLaje = variant === 0 || rng() < 0.22;
         const hh = isLaje ? 3.0 : h;
-        const isBrick = rng() < 0.34;
+        const isBrick = rng() < 0.3;
         const col = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
-        if (isBrick) pushGeo(brickGeos, w, hh, d, p.x, b.y, p.z);
-        else pushGeo(houseGeos, w, hh, d, p.x, b.y, p.z, col);
-        physics.addCollider({ minX: p.x - w / 2, maxX: p.x + w / 2, minZ: p.z - d / 2, maxZ: p.z + d / 2, top: b.y + hh, bottom: b.y - 0.2 });
-        physics.addFlatRect(p.x - w / 2 - 1.2, p.x + w / 2 + 1.2, p.z - d / 2 - 1.2, p.z + d / 2 + 1.2);
-        pushGeo(roofGeos, w + 0.3, 0.16, d + 0.3, p.x, b.y + hh, p.z);
-        pushGeo(doorGeos, 0.85, 1.85, 0.07, p.x - w / 6, b.y, p.z + d / 2 - 0.02);
-        if (rng() < 0.55) pushGeo(frameGeos, 1.45, 1.5, 0.08, p.x + w / 5, b.y, p.z + d / 2 - 0.01, GATE_COLS[Math.floor(rng() * GATE_COLS.length)]);
-        pushGeo(frameGeos, 0.07, 0.74, 0.74, p.x + w / 2 - 0.01, b.y + 1.25 + rng() * 0.5, p.z + (rng() - 0.5) * d * 0.4, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
-        if (rng() < 0.42) pushGeo(frameGeos, 0.44, 0.3, 0.32, p.x - w / 2 + 0.02, b.y + 2.05, p.z + (rng() - 0.5) * d * 0.4, "#c9cdd4");
-        if (rng() < 0.3) {
-          pushGeo(doorGeos, 0.03, 0.9, 0.03, p.x + w / 4, b.y + hh + 0.16, p.z - d / 5);
-          pushGeo(doorGeos, 0.5, 0.03, 0.03, p.x + w / 4, b.y + hh + 0.82, p.z - d / 5);
+        if (isBrick) pushGeo(brickGeos, w, hh, d, px, b.y, pz);
+        else pushGeo(houseGeos, w, hh, d, px, b.y, pz, col);
+        physics.addCollider({ minX: px - w / 2, maxX: px + w / 2, minZ: pz - d / 2, maxZ: pz + d / 2, top: b.y + hh, bottom: b.y - 0.2, type: "house" });
+        physics.addFlatRect(px - w / 2 - 1.2, px + w / 2 + 1.2, pz - d / 2 - 1.2, pz + d / 2 + 1.2);
+
+        /* --- telhado por tipo (variedade de silhueta) --- */
+        if (isLaje) {
+          pushGeo(roofGeos, w + 0.3, 0.16, d + 0.3, px, b.y + hh, pz);
+        } else if (variant === 1) {
+          const g = new THREE.BoxGeometry(w + 0.35, 0.12, d + 0.45);
+          g.rotateX(-0.16);
+          g.translate(px, b.y + hh + 0.16, pz + 0.06);
+          roofGeos.push(g);
+        } else if (variant === 2) {
+          const g = new THREE.ConeGeometry(Math.max(w, d) * 0.74, 1.15, 4);
+          g.rotateY(Math.PI / 4);
+          g.translate(px, b.y + hh + 0.575, pz);
+          roofGeos.push(g);
+        } else {
+          const r = (d / 2 + 0.25) / 0.866;
+          const g = new THREE.CylinderGeometry(r, r, w + 0.35, 3);
+          g.rotateZ(Math.PI / 2);
+          g.translate(px, b.y + hh + r * 0.5, pz);
+          roofGeos.push(g);
         }
-        if (rng() < 0.5) anchors.push(new THREE.Vector3(p.x + (rng() < 0.5 ? -w / 2 : w / 2), b.y + hh + 0.25, p.z + (rng() - 0.5) * d));
-        if (!isLaje && !isBrick && rng() < 0.16) signHouses.push({ x: p.x, z: p.z, w, d, y: b.y });
-        else if (isBrick && rng() < 0.12) muralHouses.push({ x: p.x, z: p.z, w, d, y: b.y, hh });
-        placed.push({ x: p.x, z: p.z, w, d, y: b.y, hh, laje: isLaje });
+
+        /* --- fachada viva por tipo --- */
+        const doorX = px - w / 6, doorZ = pz + d / 2 - 0.02;
+        pushGeo(doorGeos, 0.9, 2.0, 0.07, doorX, b.y, doorZ);
+        if (variant === 1 || variant === 3) {
+          const g = new THREE.BoxGeometry(1.3, 0.06, 0.7);
+          g.rotateX(0.22);
+          g.translate(doorX, b.y + 2.05, pz + d / 2 + 0.28);
+          paintGeos.push(paintGeo(g, PAINT[Math.floor(rng() * PAINT.length)]));
+        }
+        if (variant === 2) pushGeo(doorGeos, w + 0.04, 0.4, d + 0.04, px, b.y - 0.02, pz); // friso/base
+        if (rng() < 0.55) pushGeo(frameGeos, 1.45, 1.5, 0.08, px + w / 5, b.y, pz + d / 2 - 0.01, GATE_COLS[Math.floor(rng() * GATE_COLS.length)]);
+        const nWin = 1 + Math.floor(rng() * 2);
+        for (let wi2 = 0; wi2 < nWin; wi2++) {
+          const side = rng() < 0.5 ? 1 : -1;
+          pushGeo(frameGeos, 0.08, 0.74, 0.74, px + side * (w / 2 - 0.01), b.y + 1.25 + rng() * 0.5, pz + (rng() - 0.5) * d * 0.5, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
+        }
+        if (variant === 4 && hh > 3.1) {
+          // sacada com gradil (balanço sobre o beco, vão livre embaixo)
+          pushGeo(concreteGeos, 1.6, 0.1, 0.7, px + w / 6, b.y + 2.1, pz + d / 2 + 0.33);
+          for (let bi2 = 0; bi2 < 4; bi2++)
+            pushGeo(frameGeos, 0.03, 0.55, 0.03, px + w / 6 - 0.7 + bi2 * 0.47, b.y + 2.15, pz + d / 2 + 0.63, "#3c3f47");
+        }
+        if (rng() < 0.42) pushGeo(frameGeos, 0.44, 0.3, 0.32, px - w / 2 + 0.02, b.y + 2.05, pz + (rng() - 0.5) * d * 0.4, "#c9cdd4");
+        if ((variant === 1 || variant === 3) && rng() < 0.5) {
+          const g = new THREE.CylinderGeometry(0.07, 0.07, 0.7, 6);
+          g.translate(px - w / 4, b.y + hh + 0.35, pz - d / 6);
+          darkGeos.push(g);
+        }
+        if (rng() < 0.3) {
+          pushGeo(doorGeos, 0.03, 0.9, 0.03, px + w / 4, b.y + hh + 0.16, pz - d / 5);
+          pushGeo(doorGeos, 0.5, 0.03, 0.03, px + w / 4, b.y + hh + 0.82, pz - d / 5);
+        }
+        if (rng() < 0.5) anchors.push(new THREE.Vector3(px + (rng() < 0.5 ? -w / 2 : w / 2), b.y + hh + 0.25, pz + (rng() - 0.5) * d));
+        if (!isLaje && !isBrick && rng() < 0.16) signHouses.push({ x: px, z: pz, w, d, y: b.y });
+        else if (isBrick && rng() < 0.12) muralHouses.push({ x: px, z: pz, w, d, y: b.y, hh });
+        placed.push({ x: px, z: pz, w, d, y: b.y, hh, laje: isLaje });
         // casa em cima de casa (sobrado, às vezes em balanço com pilotis)
         if (!isLaje && rng() < 0.42) {
           const w2 = w * (0.62 + rng() * 0.2), d2 = d * (0.66 + rng() * 0.2);
           const h2 = 2.5 + rng() * 1.1;
           const ox = (rng() - 0.5) * (w - w2) * 0.9;
           const oz = (rng() - 0.5) * (d - d2) * 0.9;
-          const cant = rng() < 0.5 ? (rng() < 0.5 ? -1 : 1) * (0.5 + rng() * 0.55) : 0;
+          const cant = rng() < 0.5 ? (rng() < 0.5 ? -1 : 1) * (0.45 + rng() * 0.4) : 0;
           const isBrick2 = rng() < 0.4;
           const col2 = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
-          if (isBrick2) pushGeo(brickGeos, w2, h2, d2, p.x + ox + cant, b.y + hh, p.z + oz);
-          else pushGeo(houseGeos, w2, h2, d2, p.x + ox + cant, b.y + hh, p.z + oz, col2);
-          pushGeo(roofGeos, w2 + 0.24, 0.14, d2 + 0.24, p.x + ox + cant, b.y + hh + h2, p.z + oz);
-          pushGeo(frameGeos, 0.07, 0.62, 0.62, p.x + ox + cant + w2 / 2 - 0.01, b.y + hh + 1.1, p.z + oz, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
-          if (rng() < 0.5) anchors.push(new THREE.Vector3(p.x + ox + cant, b.y + hh + h2 + 0.2, p.z + oz));
+          if (isBrick2) pushGeo(brickGeos, w2, h2, d2, px + ox + cant, b.y + hh, pz + oz);
+          else pushGeo(houseGeos, w2, h2, d2, px + ox + cant, b.y + hh, pz + oz, col2);
+          pushGeo(roofGeos, w2 + 0.24, 0.14, d2 + 0.24, px + ox + cant, b.y + hh + h2, pz + oz);
+          pushGeo(frameGeos, 0.07, 0.62, 0.62, px + ox + cant + w2 / 2 - 0.01, b.y + hh + 1.1, pz + oz, WIN_COLS[Math.floor(rng() * WIN_COLS.length)]);
+          if (rng() < 0.5) anchors.push(new THREE.Vector3(px + ox + cant, b.y + hh + h2 + 0.2, pz + oz));
           if (cant !== 0) {
-            const px2 = p.x + ox + cant + (cant > 0 ? w2 / 2 - 0.25 : -w2 / 2 + 0.25);
-            for (const pz2 of [p.z + oz - d2 / 2 + 0.3, p.z + oz + d2 / 2 - 0.3]) {
+            const px2 = px + ox + cant + (cant > 0 ? w2 / 2 - 0.25 : -w2 / 2 + 0.25);
+            for (const pz2 of [pz + oz - d2 / 2 + 0.3, pz + oz + d2 / 2 - 0.3]) {
               const pil = new THREE.CylinderGeometry(0.07, 0.07, hh, 6);
               pil.translate(px2, b.y + hh / 2, pz2);
               frameGeos.push(paintGeo(pil, "#9b938a"));
@@ -513,6 +599,38 @@ export class WorldGenerator {
           physics.addSurface({ minX: L.x + L.w / 2 - 1.35, maxX: L.x + L.w / 2 - 0.25, minZ: sz - (k - 1) * 0.13 - 0.2, maxZ: sz - (k - 1) * 0.13 + 0.2, top: L.y + k * 0.27 });
         }
       }
+    }
+
+    /* ================= MOBILIÁRIO URBANO DA RUA (FASE 11) ================= */
+    // lixeiras + sacos de lixo
+    for (const [lx, lz] of [[-33, 38.4], [3, 38.5], [39, 38.3]] as const) {
+      const body = new THREE.CylinderGeometry(0.28, 0.26, 0.75, 10);
+      body.translate(lx, 0.47, lz);
+      darkGeos.push(paintGeo(body, "#2e5d3a"));
+      const lid = new THREE.CylinderGeometry(0.3, 0.3, 0.05, 10);
+      lid.translate(lx, 0.87, lz);
+      darkGeos.push(paintGeo(lid, "#243c2c"));
+      const bag = new THREE.SphereGeometry(0.24, 7, 6);
+      bag.scale(1, 0.75, 1);
+      bag.translate(lx + 0.45, 0.18, lz + 0.1);
+      darkGeos.push(bag);
+      physics.addCollider({ minX: lx - 0.3, maxX: lx + 0.3, minZ: lz - 0.3, maxZ: lz + 0.3, top: 0.9, bottom: 0, type: "prop" });
+    }
+    // bancos de praça
+    for (const [bx, bz] of [[-20, 38.45], [22, 38.5]] as const) {
+      pushGeo(woodGeos, 1.6, 0.07, 0.42, bx, 0.44, bz, "#8a6a44");
+      pushGeo(woodGeos, 1.6, 0.42, 0.06, bx, 0.5, bz - 0.2, "#8a6a44");
+      pushGeo(darkGeos, 0.07, 0.44, 0.4, bx - 0.7, 0, bz);
+      pushGeo(darkGeos, 0.07, 0.44, 0.4, bx + 0.7, 0, bz);
+      physics.addCollider({ minX: bx - 0.85, maxX: bx + 0.85, minZ: bz - 0.26, maxZ: bz + 0.26, top: 0.5, bottom: 0, type: "prop" });
+    }
+    // jardineiras com arbustos
+    for (const [jx, jz] of [[-48, 38.4], [-5, 38.5], [30, 38.45]] as const) {
+      pushGeo(concreteGeos, 0.95, 0.42, 0.55, jx, 0, jz);
+      const bush = new THREE.SphereGeometry(0.4, 7, 6);
+      bush.scale(1.2, 0.85, 1);
+      bush.translate(jx, 0.62, jz);
+      greenGeos.push(bush);
     }
 
     /* ================= MERGES PRINCIPAIS ================= */

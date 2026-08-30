@@ -11,6 +11,7 @@ import { OrbitCam } from "./camera";
 import { Player } from "./player";
 import { Economy } from "./economy";
 import { WorldGenerator } from "./world";
+import { validateWorld } from "./validate";
 import { DebugRig } from "./debug";
 import { makeGlowTex } from "./textures";
 import { PRICES, clamp, fmtBRL, BANDS, FARM, FEIRA_POS, RECEPT_POS } from "./constants";
@@ -80,7 +81,7 @@ export class QuintalGame {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.06;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.camera = new THREE.PerspectiveCamera(66, 1, 0.1, 900);
@@ -90,6 +91,7 @@ export class QuintalGame {
 
     this.world = new WorldGenerator(this.scene, this.physics);
     this.world.build();
+    validateWorld(this.physics, this.world);
 
     this.player = new Player(this.scene);
     this.player.onLand = () => this.sfx.land();
@@ -115,7 +117,7 @@ export class QuintalGame {
 
   /* ---------------- luz: sol de alta resolução + fill frio ---------------- */
   private buildLights() {
-    const sun = new THREE.DirectionalLight(0xffd9a8, 2.3);
+    const sun = new THREE.DirectionalLight(0xffd9a8, 2.45);
     sun.position.set(-70, 95, 120);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -131,7 +133,7 @@ export class QuintalGame {
     this.scene.add(sun.target);
     sun.target.position.set(0, 0, 10);
 
-    this.scene.add(new THREE.HemisphereLight(0x8f7ba8, 0x574436, 0.85));
+    this.scene.add(new THREE.HemisphereLight(0x8f7ba8, 0x574436, 0.95));
     const fill = new THREE.DirectionalLight(0x6a7fb0, 0.5);
     fill.position.set(60, 40, -80);
     this.scene.add(fill);
@@ -176,7 +178,15 @@ export class QuintalGame {
     switch (e.code) {
       case "KeyP": if (!e.repeat) this.togglePause(); break;
       case "KeyM": if (!e.repeat) { this.sfx.toggleMute(); this.emitHud(true); } break;
-      case "KeyC": if (!e.repeat) { this.debug.toggle(); this.toast(this.debug.visible ? "DEBUG: colisores visíveis (C p/ sair)" : "DEBUG desligado"); this.emitHud(true); } break;
+      case "KeyC":
+      case "F3":
+        if (!e.repeat) {
+          if (e.code === "F3") e.preventDefault();
+          this.debug.toggle();
+          this.toast(this.debug.visible ? "DEBUG: colisores visíveis (C/F3 p/ sair)" : "DEBUG desligado");
+          this.emitHud(true);
+        }
+        break;
       case "KeyG": if (!e.repeat) this.toggleFx(); break;
       case "KeyE": if (!e.repeat) this.handleAction(); break;
       case "Enter": if (!e.repeat && this.screen === "start") this.start(); break;

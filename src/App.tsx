@@ -380,7 +380,7 @@ export default function App() {
           {/* dica de controles (desktop, some sozinho) */}
           {playing && !isTouch && !hud.shop && (
             <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden text-[11px] font-medium tracking-wide text-laje-100/40 md:block">
-              WASD mover · ESPAÇO pular · E agir · arrastar gira a câmera · P pausa · C debug colisões
+              WASD mover · ESPAÇO pular · E agir · arrastar gira a câmera · P pausa · C/F3 debug colisores
             </div>
           )}
 

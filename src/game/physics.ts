@@ -8,8 +8,11 @@ import * as THREE from "three";
 import { BANDS, PHYS, smoothstep } from "./constants";
 import type { SurfaceDef } from "./types";
 
+export type ColliderType = "house" | "wall" | "fence" | "prop" | "tank" | "structure";
+
 export interface ColliderDef {
   minX: number; maxX: number; minZ: number; maxZ: number; top: number; bottom: number;
+  type?: ColliderType;
 }
 
 export class Physics {
@@ -44,7 +47,7 @@ export class Physics {
     });
   }
   /** alias nomeado pedido na spec — muretas e obstáculos sólidos */
-  registrarObstaculo(def: ColliderDef) { this.addCollider(def); }
+  registrarObstaculo(def: ColliderDef) { this.addCollider({ type: "wall", ...def }); }
 
   addSurface(s: SurfaceDef) { this.surfaces.push(s); }
   /** alias nomeado da spec */
