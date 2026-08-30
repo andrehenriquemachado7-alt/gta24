@@ -137,6 +137,10 @@ export class QuintalGame {
     const fill = new THREE.DirectionalLight(0x6a7fb0, 0.5);
     fill.position.set(60, 40, -80);
     this.scene.add(fill);
+    // rim quente de fim de tarde vindo do alto do morro: recorta silhuetas = profundidade
+    const rim = new THREE.DirectionalLight(0xff9a5e, 0.42);
+    rim.position.set(50, 30, -115);
+    this.scene.add(rim);
   }
 
   /* ---------------- post-processing (Bloom pronto p/ o futuro) ---------------- */

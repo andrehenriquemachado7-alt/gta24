@@ -218,7 +218,8 @@ export class WorldGenerator {
     const rects = this.placedRects;
     rects.length = 0;
     for (const st of STAIRS) for (const sx of st.xs) {
-      rects.push({ x: sx + 0.35, z: BANDS[st.band].z0 + 0.5, w: 3.3, d: 6.6, y: BANDS[st.band].y });
+      // bolsão largo: cobre a escada + a casa-âncora garantida (nunca flutua, nunca invade)
+      rects.push({ x: sx - 0.55, z: BANDS[st.band].z0 + 0.5, w: 6.9, d: 6.6, y: BANDS[st.band].y });
     }
     rects.push({ x: FEIRA_POS.x, z: FEIRA_POS.z, w: 9.5, d: 7.5, y: 0 });
     rects.push({ x: RECEPT_POS.x, z: RECEPT_POS.z, w: 11, d: 9.5, y: BANDS[4].y });
@@ -243,6 +244,16 @@ export class WorldGenerator {
     // calçadas contínuas (hierarquia: terreno > rua > calçada > casas)
     pushGeo(concreteGeos, 120, 0.09, 1.5, 0, 0, 38.25);
     pushGeo(concreteGeos, 120, 0.09, 1.3, 0, 0, 45.85);
+    // faixa de pedestres em frente à porteira da fazenda
+    for (let fx2 = -13.3; fx2 <= -6.7; fx2 += 1.32) {
+      pushGeo(paintGeos, 0.7, 0.015, 3.4, fx2, 0.062, 42, "#c9c4b6");
+    }
+    // tampas de bueiro (detalhe de asfalto gasto)
+    for (const [hx2, hz2] of [[-30, 43.6], [6, 40.4], [31, 44.1], [-2, 44.6], [48, 40.9]] as const) {
+      const mh = new THREE.CylinderGeometry(0.42, 0.42, 0.02, 12);
+      mh.translate(hx2, 0.075, hz2);
+      darkGeos.push(mh);
+    }
 
     /* ================= FAZENDA (polo legal) ================= */
     physics.addFlatRect(FARM.x0 - 2, FARM.x1 + 2, FARM.z0 - 2, FARM.z1 + 6);
@@ -394,6 +405,7 @@ export class WorldGenerator {
         // VALIDAÇÃO: sem sobreposição + vão mínimo de beco garantido
         if (!canPlace(px, pz, w, d, b.y)) continue;
         rects.push({ x: px, z: pz, w, d, y: b.y });
+        const ownIdx = rects.length - 1;
         const h = 2.9 + rng() * 1.9;
         const variant = Math.floor(rng() * 5); // tipos A..E
         const isLaje = variant === 0 || rng() < 0.22;
@@ -458,6 +470,15 @@ export class WorldGenerator {
           pushGeo(doorGeos, 0.03, 0.9, 0.03, px + w / 4, b.y + hh + 0.16, pz - d / 5);
           pushGeo(doorGeos, 0.5, 0.03, 0.03, px + w / 4, b.y + hh + 0.82, pz - d / 5);
         }
+        if (rng() < 0.3) {
+          // antena parabólica na parede lateral (ícone do morro, variedade de silhueta)
+          const dish = new THREE.SphereGeometry(0.26, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+          dish.scale(1, 1, 0.5);
+          dish.rotateZ(Math.PI / 2);
+          dish.rotateY(rng() * 0.7 - 0.35);
+          dish.translate(px - w / 2 - 0.1, b.y + 1.9 + rng() * 0.7, pz + (rng() - 0.5) * d * 0.4);
+          frameGeos.push(paintGeo(dish, "#d8d4cc"));
+        }
         if (rng() < 0.5) anchors.push(new THREE.Vector3(px + (rng() < 0.5 ? -w / 2 : w / 2), b.y + hh + 0.25, pz + (rng() - 0.5) * d));
         if (!isLaje && !isBrick && rng() < 0.16) signHouses.push({ x: px, z: pz, w, d, y: b.y });
         else if (isBrick && rng() < 0.12) muralHouses.push({ x: px, z: pz, w, d, y: b.y, hh });
@@ -466,9 +487,22 @@ export class WorldGenerator {
         if (!isLaje && rng() < 0.42) {
           const w2 = w * (0.62 + rng() * 0.2), d2 = d * (0.66 + rng() * 0.2);
           const h2 = 2.5 + rng() * 1.1;
-          const ox = (rng() - 0.5) * (w - w2) * 0.9;
-          const oz = (rng() - 0.5) * (d - d2) * 0.9;
-          const cant = rng() < 0.5 ? (rng() < 0.5 ? -1 : 1) * (0.45 + rng() * 0.4) : 0;
+          const ox0 = (rng() - 0.5) * (w - w2) * 0.9;
+          const oz0 = (rng() - 0.5) * (d - d2) * 0.9;
+          let ox = ox0, oz = oz0;
+          let cant = rng() < 0.5 ? (rng() < 0.5 ? -1 : 1) * (0.45 + rng() * 0.4) : 0;
+          // REGRA: puxadinho NUNCA invade o vizinho (checa o patamar ignorando a própria casa)
+          const fitsSobrado = (tx: number, tz: number) => {
+            for (let ri = 0; ri < rects.length; ri++) {
+              if (ri === ownIdx) continue;
+              const r = rects[ri];
+              if (Math.abs(r.y - b.y) > 0.5) continue;
+              if (Math.abs(tx - r.x) < (w2 + r.w) / 2 + 0.2 && Math.abs(tz - r.z) < (d2 + r.d) / 2 + 0.2) return false;
+            }
+            return true;
+          };
+          if (!fitsSobrado(px + ox + cant, pz + oz)) { cant = 0; ox = 0; oz = 0; }
+          if (!fitsSobrado(px, pz)) continue; // sem espaço nem centralizado: desiste do puxadinho
           const isBrick2 = rng() < 0.4;
           const col2 = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
           if (isBrick2) pushGeo(brickGeos, w2, h2, d2, px + ox + cant, b.y + hh, pz + oz);
@@ -499,12 +533,14 @@ export class WorldGenerator {
         const dx = b2.x - a.x;
         if (dz < 2.4 && dx > a.w / 2 + 0.7 && dx < a.w / 2 + 3.6) {
           const gap = dx - a.w / 2 - b2.w / 2;
-          if (gap < 0.6 || gap > 3.4) break;
+          if (gap < 1.4 || gap > 3.4) break;
           const cx = a.x + a.w / 2 + gap / 2, cz = (a.z + b2.z) / 2;
           const py = a.y + Math.min(a.hh, b2.hh) - 0.35;
           pushGeo(concreteGeos, gap + 0.5, 0.12, 0.85, cx, py, cz);
           pushGeo(frameGeos, gap + 0.5, 0.05, 0.05, cx, py + 0.55, cz - 0.4, "#5a5168");
           pushGeo(frameGeos, gap + 0.5, 0.05, 0.05, cx, py + 0.55, cz + 0.4, "#5a5168");
+          // REGRA: ponte é caminho REAL — superfície andável no vão livre (salto curto p/ subir)
+          physics.addSurface({ minX: a.x + a.w / 2 + 0.4, maxX: b2.x - b2.w / 2 - 0.4, minZ: cz - 0.42, maxZ: cz + 0.42, top: py + 0.12 });
           break;
         }
       }
@@ -520,11 +556,28 @@ export class WorldGenerator {
         const run = N_STEPS * TREAD;
         // casa-âncora: parede lateral externa MAIS PRÓXIMA sem invadir os degraus
         let wallX = sx - STAIR_W / 2 - 0.3;
+        let anchored = false;
         for (const hs of placed) {
           if (Math.abs(hs.y - yLow) > 0.01) continue;
           if (hs.z < boundary + 0.6 || hs.z > boundary + 7.6) continue;
           const wx = hs.x + hs.w / 2;
-          if (wx <= sx - 0.4 && wx > wallX) wallX = wx;
+          if (wx <= sx - 0.4 && wx > wallX) { wallX = wx; anchored = true; }
+        }
+        if (!anchored) {
+          // REGRA: escada NUNCA flutua — gera uma casa-âncora colada nela
+          const wA = 3.6, dA = 3.0, hhA = 3.0;
+          let axc = sx - STAIR_W / 2 - wA / 2 - 1.3;
+          const azc = boundary + 2.5;
+          let guard = 0;
+          while (!canPlace(axc, azc, wA, dA, yLow) && guard++ < 12) axc -= 0.7;
+          wallX = axc + wA / 2;
+          const colA = HOUSE_COLORS[Math.floor(rng() * HOUSE_COLORS.length)];
+          pushGeo(houseGeos, wA, hhA, dA, axc, yLow, azc, colA);
+          physics.addCollider({ minX: axc - wA / 2, maxX: axc + wA / 2, minZ: azc - dA / 2, maxZ: azc + dA / 2, top: yLow + hhA, bottom: yLow - 0.2, type: "house" });
+          physics.addFlatRect(axc - wA / 2 - 1, axc + wA / 2 + 1, azc - dA / 2 - 1, azc + dA / 2 + 1);
+          pushGeo(roofGeos, wA + 0.3, 0.16, dA + 0.3, axc, yLow + hhA, azc);
+          pushGeo(doorGeos, 0.9, 2.0, 0.07, axc - wA / 6, yLow, azc + dA / 2 - 0.02);
+          rects.push({ x: axc, z: azc, w: wA, d: dA, y: yLow });
         }
         const x0 = wallX + 0.03; // colada na parede
         const xC = x0 + STAIR_W / 2;
