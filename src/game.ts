@@ -196,10 +196,11 @@ const SPOTS: Spot[] = [
   { x: 30, z: -52, y: BANDS[6].y },
 ];
 
+/* tinta desbotada de sol — o colorido real da favela, nada de neon */
 const HOUSE_COLORS = [
-  "#e85d75", "#f2a541", "#f4d35e", "#7bc950", "#3fb8af",
-  "#4d9de0", "#9b72cf", "#e15b9b", "#c86b52", "#59c3c3",
-  "#d96fb0", "#8fbf4d",
+  "#c46a4a", "#d99a5e", "#c9b183", "#8fa08c", "#b3573f",
+  "#cdb892", "#7f92a4", "#a08492", "#b8c0a2", "#c08a68",
+  "#96a5ad", "#c7a455",
 ];
 
 /* ============================================================
@@ -333,7 +334,7 @@ export class QuintalGame {
   private hudTimer = 0;
 
   // mundo vivo
-  private npcs: { g: THREE.Group; x: number; z: number; y: number; sp: number; ph: number; rot: number; wi: number; fwd: number; route: { x: number; z: number; y: number }[] }[] = [];
+  private npcs: { g: THREE.Group; x: number; z: number; y: number; sp: number; ph: number; rot: number; wi: number; fwd: number; step: number; legL: THREE.Mesh; legR: THREE.Mesh; armL: THREE.Mesh; armR: THREE.Mesh; route: { x: number; z: number; y: number }[] }[] = [];
   private birds: { g: THREE.Group; wingL: THREE.Mesh; wingR: THREE.Mesh; a: number; r: number; h: number; sp: number }[] = [];
   private signRedraws: (() => void)[] = [];
   private raf = 0;
@@ -461,7 +462,7 @@ export class QuintalGame {
     // Corcovado com o Cristo Redentor de braços abertos
     const corc = new THREE.Mesh(new THREE.ConeGeometry(24, 92, 8), mtMat);
     corc.position.set(160, -4, 295); this.scene.add(corc);
-    const cristoMat = new THREE.MeshLambertMaterial({ color: 0xe9e5da, emissive: 0x9aa2b8, emissiveIntensity: 0.55 });
+    const cristoMat = new THREE.MeshLambertMaterial({ color: 0xe9e5da, emissive: 0x9aa2b8, emissiveIntensity: 0.15 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), cristoMat);
     body.position.set(160, 92, 295); this.scene.add(body);
     const arms = new THREE.Mesh(new THREE.BoxGeometry(13, 1.4, 1.4), cristoMat);
@@ -661,7 +662,7 @@ export class QuintalGame {
     const c = document.createElement("canvas"); c.width = 256; c.height = 128;
     const x = c.getContext("2d")!;
     x.fillStyle = "#8f4a2c"; x.fillRect(0, 0, 256, 128);
-    const cols = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#ff4fd8", "#f2f2f2"];
+    const cols = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#ff8c42", "#f2f2f2"];
     for (let i = 0; i < 26; i++) {
       x.fillStyle = cols[Math.floor(Math.random() * cols.length)];
       x.globalAlpha = 0.22 + Math.random() * 0.5;
@@ -744,9 +745,9 @@ export class QuintalGame {
     const frameMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x241f28 });
     const paintMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    const PAINT = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#ff4fd8"];
+    const PAINT = ["#ffd23f", "#e85d75", "#3fb8af", "#4d9de0", "#7bc950", "#e8622f"];
     const GATE_COLS = ["#2f7d5b", "#3b5fa0", "#a33d2f", "#545a66", "#7a5a24"];
-    const WIN_COLS = ["#e85d75", "#4d9de0", "#f4d35e", "#3fb8af", "#9b72cf", "#f2f2f2"];
+    const WIN_COLS = ["#e85d75", "#4d9de0", "#f4d35e", "#3fb8af", "#c98a5a", "#f2f2f2"];
     // cilindro "cozido" entre dois pontos (corrimãos, postes, fios)
     const tubeGeo = (a: THREE.Vector3, b: THREE.Vector3, r: number) => {
       const dir = new THREE.Vector3().subVectors(b, a);
@@ -854,7 +855,7 @@ export class QuintalGame {
         if (SPOTS.some((s) => Math.abs(p.x - s.x) < 4 && Math.abs(p.z - s.z) < 4)) continue;
         if (rng() < 0.07) continue; // beco vazio (raríssimo — o morro é cheio)
         const w = 4.0 + rng() * 1.6;
-        const d = 3.4 + rng() * 1.3;
+        const d = 3.4 + rng() * 0.9;
         const h = 2.9 + rng() * 1.9;
         const isLaje = rng() < 0.34;
         const hh = isLaje ? 3.0 : h;
@@ -998,7 +999,7 @@ export class QuintalGame {
     };
     const houseMat = new THREE.MeshLambertMaterial({
       vertexColors: true, map: wallTex.map,
-      emissiveMap: wallTex.emissiveMap, emissive: 0xffc766, emissiveIntensity: 0.55,
+      emissiveMap: wallTex.emissiveMap, emissive: 0xffc766, emissiveIntensity: 0.08,
     });
     buildMerged(houseGeos, houseMat);
     buildMerged(roofGeos, roofMat);
@@ -1009,7 +1010,7 @@ export class QuintalGame {
     /* --- mercadinho --- */
     {
       const mx = -10, mz = 47, my = BANDS[0].y;
-      const mat = new THREE.MeshLambertMaterial({ color: 0xf2e9d8, map: wallTex.map, emissiveMap: wallTex.emissiveMap, emissive: 0xffc766, emissiveIntensity: 0.55 });
+      const mat = new THREE.MeshLambertMaterial({ color: 0xf2e9d8, map: wallTex.map, emissiveMap: wallTex.emissiveMap, emissive: 0xffc766, emissiveIntensity: 0.08 });
       this.box(6.4, 3.4, 5, mat, mx, my, mz);
       this.addCollider({ minX: mx - 3.2, maxX: mx + 3.2, minZ: mz - 2.5, maxZ: mz + 2.5, top: my + 3.4, bottom: my - 0.2 });
       this.addFlatRect(mx - 5, mx + 5, mz - 5.5, mz + 4);
@@ -1149,7 +1150,7 @@ export class QuintalGame {
     /* --- letreiros pintados à mão nas fachadas --- */
     const SIGN_DATA: [string, string, string][] = [
       ["BAR DO BIGODE", "#173f2a", "#ffd23f"],
-      ["SALÃO DA NEGA", "#471033", "#ff4fd8"],
+      ["SALÃO DA NEGA", "#471033", "#f2e3c8"],
       ["AÇAÍ DO MORRO", "#241a4a", "#7ef29a"],
       ["PADARIA PAO QUENTE", "#6e2410", "#f4d35e"],
       ["LAN HOUSE", "#0e2836", "#4d9de0"],
@@ -1215,7 +1216,7 @@ export class QuintalGame {
     pushGeo(cityGeos, 4.5, 21, 4.5, 18, -0.5, 92, "#9aa3ab");
     buildMerged(cityGeos, new THREE.MeshLambertMaterial({
       vertexColors: true, map: wallTex.map, emissiveMap: wallTex.emissiveMap,
-      emissive: 0xffc766, emissiveIntensity: 0.7,
+      emissive: 0xffc766, emissiveIntensity: 0.4,
     }));
 
     /* --- varais estendidos de casa pra casa, por cima das vielas --- */
@@ -1269,7 +1270,7 @@ export class QuintalGame {
     const vielaZ = (bi: number): number => {
       if (bi === 0) return 39.8 + rng() * 3.4;
       const b = BANDS[bi];
-      return b.z0 + (rng() < 0.5 ? 4.75 : 11.25) + (rng() - 0.5) * 0.6;
+      return b.z0 + (rng() < 0.5 ? 4.75 : 11.25); // centro exato da viela — sem raspar nas paredes
     };
     const routes: { x: number; z: number; y: number }[][] = [];
     // 4 patrulheiros de viela (vai-e-volta no beco)
@@ -1306,18 +1307,39 @@ export class QuintalGame {
     for (let i = 0; i < 10; i++) {
       const route = routes[i % routes.length];
       const g = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.85, 8), new THREE.MeshLambertMaterial({ color: shirts[i % shirts.length] }));
-      body.position.y = 0.78; body.castShadow = true; g.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 8), new THREE.MeshLambertMaterial({ color: skins[i % skins.length] }));
-      head.position.y = 1.38; head.castShadow = true; g.add(head);
-      const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.42, 8), new THREE.MeshLambertMaterial({ color: 0x33415e }));
-      legs.position.y = 0.21; g.add(legs);
+      const shirtMat = new THREE.MeshLambertMaterial({ color: shirts[i % shirts.length] });
+      const skinMat = new THREE.MeshLambertMaterial({ color: skins[i % skins.length] });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: 0x33415e });
+      // pernas com pivô no quadril (passo visível)
+      const mkLeg = (sx: number): THREE.Mesh => {
+        const geo = new THREE.CapsuleGeometry(0.07, 0.34, 3, 8);
+        geo.translate(0, -0.24, 0);
+        const m = new THREE.Mesh(geo, pantsMat);
+        m.position.set(sx, 0.58, 0); m.castShadow = true; g.add(m); return m;
+      };
+      const legL = mkLeg(-0.09), legR = mkLeg(0.09);
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.34, 4, 10), shirtMat);
+      body.position.y = 0.98; body.castShadow = true; g.add(body);
+      // braços com pivô no ombro
+      const mkArm = (sx: number): THREE.Mesh => {
+        const geo = new THREE.CapsuleGeometry(0.045, 0.26, 3, 8);
+        geo.translate(0, -0.17, 0);
+        const m = new THREE.Mesh(geo, skinMat);
+        m.position.set(sx, 1.2, 0); g.add(m); return m;
+      };
+      const armL = mkArm(-0.22), armR = mkArm(0.22);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), skinMat);
+      head.position.y = 1.46; head.castShadow = true; g.add(head);
+      if (i % 3 === 0) {
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.07, 10), new THREE.MeshLambertMaterial({ color: 0xe8452e }));
+        cap.position.y = 1.56; g.add(cap);
+      }
       const p0 = route[0];
       g.position.set(p0.x, p0.y, p0.z);
       this.scene.add(g);
       this.npcs.push({
         g, x: p0.x, z: p0.z, y: p0.y, sp: 1.0 + rng() * 0.9, ph: rng() * 9,
-        rot: 0, wi: 0, fwd: 1, route,
+        rot: 0, wi: 0, fwd: 1, step: rng() * 9, legL, legR, armL, armR, route,
       });
     }
 
@@ -1361,7 +1383,7 @@ export class QuintalGame {
       if (pg) {
         const pm = new THREE.Mesh(pg, new THREE.MeshLambertMaterial({
           color: 0x31485c, transparent: true, opacity: 0.82,
-          emissive: 0x4a6b8a, emissiveIntensity: 0.5, depthWrite: false,
+          emissive: 0x3a5164, emissiveIntensity: 0.18, depthWrite: false,
         }));
         pm.renderOrder = 2;
         this.scene.add(pm);
@@ -2191,15 +2213,21 @@ export class QuintalGame {
         if (nw >= n.route.length) { nw = Math.max(0, n.route.length - 2); n.fwd = -1; }
         n.wi = nw;
       };
-      if (dist < 0.45) {
+      const moving = dist >= 0.45;
+      if (!moving) {
         let nw = n.wi + n.fwd;
         if (nw < 0 || nw >= n.route.length) bounce();
         else n.wi = nw;
       } else {
         const nx = n.x + (dx / dist) * n.sp * dt;
         const nz = n.z + (dz / dist) * n.sp * dt;
-        if (this.collides(nx, nz, n.y)) bounce(); // bateu em parede: inverte a rota
-        else { n.x = nx; n.z = nz; }
+        if (this.collides(nx, nz, n.y)) {
+          // desliza contornando a parede em vez de quicar sem rumo
+          if (!this.collides(nx, n.z, n.y)) n.x = nx;
+          else if (!this.collides(n.x, nz, n.y)) n.z = nz;
+          else bounce();
+        } else { n.x = nx; n.z = nz; }
+        n.step += n.sp * dt * 4.2;
         const targetYaw = Math.atan2(dx, dz);
         let dy = targetYaw - n.rot;
         while (dy > Math.PI) dy -= Math.PI * 2;
@@ -2207,9 +2235,15 @@ export class QuintalGame {
         n.rot += dy * Math.min(1, 8 * dt);
         n.g.rotation.y = n.rot;
       }
+      // pernas e braços no ritmo do passo
+      const sw = moving ? Math.sin(n.step * 2.1 + n.ph) * 0.6 : 0;
+      n.legL.rotation.x = damp(n.legL.rotation.x, sw, 12, dt);
+      n.legR.rotation.x = damp(n.legR.rotation.x, -sw, 12, dt);
+      n.armL.rotation.x = damp(n.armL.rotation.x, -sw * 0.7, 12, dt);
+      n.armR.rotation.x = damp(n.armR.rotation.x, sw * 0.7, 12, dt);
       // acompanha degraus, lajes e a encosta orgânica
       n.y = Math.max(this.terrainH(n.x, n.z), this.sampleGround(n.x, n.z, n.y, 0.3));
-      n.g.position.set(n.x, n.y + Math.abs(Math.sin(t * 6 + n.ph)) * 0.05, n.z);
+      n.g.position.set(n.x, n.y + (moving ? Math.abs(Math.sin(t * 6 + n.ph)) * 0.045 : 0), n.z);
     }
     for (const b of this.birds) {
       b.a += b.sp * dt;

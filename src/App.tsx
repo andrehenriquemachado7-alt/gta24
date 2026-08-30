@@ -354,6 +354,15 @@ export default function App() {
             </div>
           )}
 
+          {/* selo de modo debug (colisores visíveis) */}
+          {hud.debug && (
+            <div className="pointer-events-none absolute left-1/2 top-20 z-30 -translate-x-1/2 sm:top-24">
+              <div className="hud-chip border-rojo-500/70 px-4 py-1.5 text-[11px] font-bold tracking-[0.22em] text-rojo-500" style={{ boxShadow: "0 0 18px rgba(255,93,93,0.35)" }}>
+                DEBUG DE COLISÃO ATIVO — {isTouch ? "TOQUE EM DBG" : "C"} PARA SAIR
+              </div>
+            </div>
+          )}
+
           {/* toast */}
           {hud.toast && (
             <div key={hud.toast.id} className="toast-anim pointer-events-none absolute bottom-44 left-1/2 z-30 sm:bottom-24">
